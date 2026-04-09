@@ -1,0 +1,117 @@
+import React, { useState } from 'react'
+import { Shield, Bell, BarChart2, Settings, Database, RefreshCw, Building2 } from 'lucide-react'
+import Portfolio from './components/Portfolio'
+import ByEntity from './components/ByEntity'
+import Alerts from './components/Alerts'
+import Analytics from './components/Analytics'
+import ApiSetup from './components/ApiSetup'
+import { trademarks } from './data/sampleData'
+
+const TABS = [
+  { id: 'portfolio', label: 'Portfolio',  icon: Database },
+  { id: 'entity',    label: 'By Entity',  icon: Building2 },
+  { id: 'alerts',    label: 'Alerts',     icon: Bell },
+  { id: 'analytics', label: 'Analytics',  icon: BarChart2 },
+  { id: 'api',       label: 'API Setup',  icon: Settings },
+]
+
+export default function App() {
+  const [activeTab, setActiveTab] = useState('portfolio')
+
+  const alertCount = trademarks.filter(
+    t => t.status === 'Expiring Soon' || t.status === 'Opposed' || t.status === 'Expired'
+  ).length
+
+  const stats = {
+    total:    trademarks.length,
+    active:   trademarks.filter(t => t.status === 'Active').length,
+    pending:  trademarks.filter(t => t.status === 'Pending').length,
+    alerts:   alertCount,
+    countries: new Set(trademarks.map(t => t.country)).size,
+  }
+
+  return (
+    <div className="min-h-screen bg-navy-900 text-slate-200 font-sans">
+
+      {/* ── Header ── */}
+      <header className="border-b border-navy-500 bg-navy-800 px-6 py-4">
+        <div className="max-w-screen-2xl mx-auto flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-accent-blue/10 border border-accent-blue/20">
+              <Shield className="w-6 h-6 text-accent-blue" />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold text-white tracking-tight">Yanolja IP Trackers</h1>
+              <p className="text-xs text-slate-400">makes IP 10x easier</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-5">
+            <div className="hidden sm:grid grid-cols-4 gap-5 text-center">
+              {[
+                { label: 'Total',     value: stats.total,     color: 'text-accent-blue' },
+                { label: 'Active',    value: stats.active,    color: 'text-accent-green' },
+                { label: 'Pending',   value: stats.pending,   color: 'text-yellow-400' },
+                { label: 'Countries', value: stats.countries, color: 'text-purple-400' },
+              ].map(s => (
+                <div key={s.label}>
+                  <p className={`text-xl font-bold ${s.color}`}>{s.value}</p>
+                  <p className="text-[10px] text-slate-400 uppercase tracking-wider">{s.label}</p>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex items-center gap-3">
+              <div className="text-right hidden md:block">
+                <p className="text-[10px] text-slate-500 uppercase tracking-wider">Last sync</p>
+                <p className="text-xs text-accent-green font-mono">2026-04-09 08:32 UTC</p>
+              </div>
+              <button className="flex items-center gap-2 px-4 py-2 rounded-lg bg-accent-blue/10 border border-accent-blue/30 text-accent-blue text-sm hover:bg-accent-blue/20 transition-colors">
+                <RefreshCw className="w-4 h-4" />
+                Sync
+              </button>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* ── Tab bar ── */}
+      <nav className="border-b border-navy-500 bg-navy-800/40 px-6 sticky top-0 z-20 backdrop-blur-sm">
+        <div className="max-w-screen-2xl mx-auto flex">
+          {TABS.map(tab => {
+            const Icon = tab.icon
+            const isActive = activeTab === tab.id
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex items-center gap-2 px-5 py-4 text-sm font-medium border-b-2 transition-colors
+                  ${isActive
+                    ? 'border-accent-blue text-accent-blue'
+                    : 'border-transparent text-slate-400 hover:text-slate-200 hover:border-navy-400'
+                  }`}
+              >
+                <Icon className="w-4 h-4" />
+                {tab.label}
+                {tab.id === 'alerts' && alertCount > 0 && (
+                  <span className="ml-0.5 px-1.5 py-0.5 text-[10px] font-bold rounded-full bg-red-500/20 text-red-400 border border-red-500/30">
+                    {alertCount}
+                  </span>
+                )}
+              </button>
+            )
+          })}
+        </div>
+      </nav>
+
+      {/* ── Content ── */}
+      <main className="max-w-screen-2xl mx-auto px-6 py-6">
+        {activeTab === 'portfolio' && <Portfolio  data={trademarks} />}
+        {activeTab === 'entity'    && <ByEntity   data={trademarks} />}
+        {activeTab === 'alerts'    && <Alerts     data={trademarks} />}
+        {activeTab === 'analytics' && <Analytics  data={trademarks} />}
+        {activeTab === 'api'       && <ApiSetup />}
+      </main>
+    </div>
+  )
+}
