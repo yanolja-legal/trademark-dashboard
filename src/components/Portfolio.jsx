@@ -1,9 +1,10 @@
 import React, { useState, useMemo, useCallback } from 'react'
 import {
   Search, ChevronUp, ChevronDown, ChevronLeft, ChevronRight,
-  X, Globe, Loader2, AlertTriangle, ShieldAlert, Clock,
+  X, Globe, Loader2, AlertTriangle, ShieldAlert, Clock, RefreshCw,
 } from 'lucide-react'
 import { differenceInDays, parseISO, format, isValid } from 'date-fns'
+import { REGISTRIES } from '../registries'
 
 // ── constants ─────────────────────────────────────────────────────────────────
 
@@ -15,30 +16,31 @@ const STATUS_STYLES = {
   'Expired':       'bg-slate-500/10 text-slate-400 border-slate-500/20',
 }
 
-/** Registry badge colours */
 const REGISTRY_STYLES = {
   'WIPO Madrid' : 'bg-purple-500/10 text-purple-400 border-purple-500/20',
   'USPTO'       : 'bg-sky-500/10 text-sky-400 border-sky-500/20',
   'IP India'    : 'bg-orange-500/10 text-orange-400 border-orange-500/20',
   'ILPO'        : 'bg-teal-500/10 text-teal-400 border-teal-500/20',
   'EUIPO'       : 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20',
+  'KIPRIS'      : 'bg-pink-500/10 text-pink-400 border-pink-500/20',
 }
 const REGISTRY_DEFAULT = 'bg-accent-blue/10 text-accent-blue border-accent-blue/20'
 
 const COLUMNS = [
-  { key: 'applicant',        label: 'Applicant',     w: '160px' },
-  { key: 'markName',         label: 'Mark Name',     w: '160px' },
-  { key: 'registry',         label: 'Registry',      w: '95px'  },
-  { key: 'country',          label: 'Country',       w: '160px' },
-  { key: 'serialNo',         label: 'Serial No.',    w: '130px' },
-  { key: 'regNo',            label: 'Reg. No.',      w: '120px' },
-  { key: 'kindOfMark',       label: 'Kind',          w: '95px'  },
-  { key: 'ncl',              label: 'NCL',           w: '80px'  },
-  { key: 'applicationDate',  label: 'App. Date',     w: '110px' },
-  { key: 'publicationDate',  label: 'Pub. Date',     w: '110px' },
-  { key: 'registrationDate', label: 'Reg. Date',     w: '110px' },
-  { key: 'expiryDate',       label: 'Expiry Date',   w: '130px' },
-  { key: 'status',           label: 'Status',        w: '200px' },
+  { key: 'applicant',        label: 'Applicant',      w: '160px' },
+  { key: 'markName',         label: 'Mark Name',      w: '160px' },
+  { key: 'registry',         label: 'Registry',       w: '105px' },
+  { key: 'country',          label: 'Country',        w: '150px' },
+  { key: 'serialNo',         label: 'Serial No.',     w: '130px' },
+  { key: 'regNo',            label: 'Reg. No.',       w: '120px' },
+  { key: 'kindOfMark',       label: 'Kind',           w: '90px'  },
+  { key: 'ncl',              label: 'NCL',            w: '80px'  },
+  { key: 'applicationDate',  label: 'Filed',          w: '110px' },
+  { key: 'publicationDate',  label: 'Published',      w: '110px' },
+  { key: 'registrationDate', label: 'Registered',     w: '110px' },
+  { key: 'expiryDate',       label: 'Expires',        w: '130px' },
+  { key: 'status',           label: 'Status',         w: '140px' },
+  { key: 'flags',            label: 'Flags',          w: '180px' },
 ]
 
 const PAGE_SIZE = 10
@@ -104,22 +106,18 @@ function DesignatedCountriesTooltip({ countries }) {
 }
 
 /**
- * Warning badge shown in the Status cell for USPTO records where a Section 8
- * or Section 15 affidavit is due or overdue — the critical compliance flag.
- *
- * `maintenanceAlert` shape: { types: string[], status: 'due'|'overdue', message: string }
+ * Section 8 / 15 affidavit compliance badge (USPTO).
+ * `alert` shape: { types: string[], status: 'due'|'overdue', message: string }
  */
 function MaintenanceBadge({ alert }) {
   const [open, setOpen] = useState(false)
   if (!alert) return null
-
   const isOverdue = alert.status === 'overdue'
   const label     = alert.types.map(t => t === 'section8' ? 'Sec.8' : 'Sec.15').join('+')
   const badgeCls  = isOverdue
     ? 'bg-red-500/15 text-red-400 border-red-500/30'
     : 'bg-amber-500/15 text-amber-400 border-amber-500/30'
   const iconCls   = isOverdue ? 'text-red-400' : 'text-amber-400'
-
   return (
     <span className="relative inline-flex items-center">
       <button
@@ -146,22 +144,18 @@ function MaintenanceBadge({ alert }) {
 }
 
 /**
- * Warning badge for IP India marks that are Objected or Opposed.
- * India has notorious backlogs — status changes happen without notice.
- *
+ * IP India objected / opposed monitoring badge.
  * `alert` shape: { rawStatus: 'Objected'|'Opposed', message: string }
  */
 function IPIndiaWarningBadge({ alert }) {
   const [open, setOpen] = useState(false)
   if (!alert) return null
-
   const isOpposed = alert.rawStatus === 'Opposed'
   const badgeCls  = isOpposed
     ? 'bg-red-500/15 text-red-400 border-red-500/30'
     : 'bg-amber-500/15 text-amber-400 border-amber-500/30'
   const labelCls  = isOpposed ? 'text-red-400' : 'text-amber-400'
   const label     = isOpposed ? 'OPPOSED' : 'OBJECTED'
-
   return (
     <span className="relative inline-flex items-center">
       <button
@@ -188,25 +182,19 @@ function IPIndiaWarningBadge({ alert }) {
 }
 
 /**
- * Expiry warning badge for ILPO marks within 180 days of expiry.
- * Israel's renewal grace period is exactly 6 months — this is the critical window.
- *
+ * ILPO Israel 180-day grace-period expiry badge.
  * `alert` shape: { daysLeft: number, graceRemaining: number|null, message: string }
  */
 function ILPOExpiryBadge({ alert }) {
   const [open, setOpen] = useState(false)
   if (!alert) return null
-
-  const inGrace   = alert.daysLeft < 0
-  const isUrgent  = alert.daysLeft <= 30
-  const badgeCls  = inGrace || isUrgent
+  const inGrace  = alert.daysLeft < 0
+  const isUrgent = alert.daysLeft <= 30
+  const badgeCls = inGrace || isUrgent
     ? 'bg-red-500/15 text-red-400 border-red-500/30'
     : 'bg-amber-500/15 text-amber-400 border-amber-500/30'
-  const labelCls  = inGrace || isUrgent ? 'text-red-400' : 'text-amber-400'
-  const label     = inGrace
-    ? `GRACE ${alert.graceRemaining}d`
-    : `RENEW ${alert.daysLeft}d`
-
+  const labelCls = inGrace || isUrgent ? 'text-red-400' : 'text-amber-400'
+  const label    = inGrace ? `GRACE ${alert.graceRemaining}d` : `RENEW ${alert.daysLeft}d`
   return (
     <span className="relative inline-flex items-center">
       <button
@@ -232,7 +220,7 @@ function ILPOExpiryBadge({ alert }) {
   )
 }
 
-/** Office action warning icon with tooltip. */
+/** Office action warning badge (USPTO). */
 function OfficeActionBadge({ pending }) {
   const [open, setOpen] = useState(false)
   if (!pending) return null
@@ -259,170 +247,81 @@ function OfficeActionBadge({ pending }) {
   )
 }
 
-// ── reusable live-search bar ──────────────────────────────────────────────────
-
 /**
- * Generic live-search bar that POSTs to an /api/* endpoint.
- * Props:
- *   label       string    — left label text
- *   placeholder string    — input placeholder
- *   apiPath     string    — e.g. "/api/wipo-search"
- *   queryParam  string    — query param name, e.g. "holder" or "owner"
- *   loadingMsg  string    — spinner message
- *   onResults   fn([])    — called with result array
- *   onLoading   fn(bool)  — loading state up
- *   onError     fn(str|null)
+ * Generic expiry badge for non-ILPO marks expiring within 90 days.
  */
-function LiveSearchBar({
-  label, placeholder, apiPath, queryParam, loadingMsg,
-  onResults, onLoading, onError,
-}) {
-  const [input,      setInput]      = useState('')
-  const [loading,    setLoading]    = useState(false)
-  const [lastQuery,  setLastQuery]  = useState('')
-  const [resultInfo, setResultInfo] = useState(null)
-
-  async function handleSearch(e) {
-    e.preventDefault()
-    const q = input.trim()
-    if (!q || q === lastQuery) return
-
-    setLoading(true)
-    onLoading(true)
-    onError(null)
-
+function ExpiryFlagBadge({ expiryDate, registry, status }) {
+  const [open, setOpen] = useState(false)
+  // ILPO has its own badge; status === 'Expiring Soon' is redundant with expiryDate check
+  if (registry === 'ILPO') return null
+  if (!expiryDate && status !== 'Expiring Soon') return null
+  let days = null
+  if (expiryDate) {
     try {
-      const res  = await fetch(`${apiPath}?${queryParam}=${encodeURIComponent(q)}`)
-      const json = await res.json()
-
-      if (!res.ok) {
-        // Surface the workaround if the API returned one
-        const detail = json.workaround ? `${json.error} — ${json.workaround}` : (json.error || `HTTP ${res.status}`)
-        throw new Error(detail)
-      }
-
-      // Credentials-pending state (e.g. EUIPO not yet configured) — not a real error
-      if (json.status === 'pending') {
-        onError(`PENDING:${json.message}`)
-        onResults([])
-        setLoading(false)
-        onLoading(false)
-        return
-      }
-
-      setLastQuery(q)
-      setResultInfo({ count: json.count, query: q })
-      onResults(json.results ?? [])
-    } catch (err) {
-      onError(`${label} search failed: ${err.message}`)
-      onResults([])
-    } finally {
-      setLoading(false)
-      onLoading(false)
-    }
+      const d = parseISO(expiryDate)
+      if (!isValid(d)) return null
+      days = differenceInDays(d, new Date())
+      if (days < 0 || days > 90) return null
+    } catch { return null }
+  } else if (status !== 'Expiring Soon') {
+    return null
   }
-
-  function handleClear() {
-    setInput('')
-    setLastQuery('')
-    setResultInfo(null)
-    onResults([])
-    onError(null)
-  }
-
+  const isCritical = days !== null && days <= 30
+  const badgeCls   = isCritical
+    ? 'bg-red-500/15 text-red-400 border-red-500/30'
+    : 'bg-orange-500/15 text-orange-400 border-orange-500/30'
+  const label = days !== null ? `EXPIRING ${days}d` : 'EXPIRING'
   return (
-    <div className="flex items-center gap-3 p-3 rounded-xl bg-navy-800 border border-navy-500">
-      <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider whitespace-nowrap">
+    <span className="relative inline-flex items-center">
+      <button
+        onMouseEnter={() => setOpen(true)}
+        onMouseLeave={() => setOpen(false)}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setOpen(false)}
+        className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold border ${badgeCls}`}
+        aria-label="Expiring within 90 days"
+      >
+        <Clock className="w-2.5 h-2.5" />
         {label}
-      </span>
-      <form onSubmit={handleSearch} className="flex items-center gap-2 flex-1">
-        <div className="relative flex-1 min-w-0">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-          <input
-            type="text"
-            placeholder={placeholder}
-            value={input}
-            onChange={e => setInput(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 bg-navy-700 border border-navy-500 rounded-lg text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-accent-blue/50 transition-colors"
-          />
+      </button>
+      {open && (
+        <div className="absolute bottom-full left-0 mb-1.5 z-50 w-52 p-3 rounded-lg bg-navy-700 border border-navy-400 shadow-xl text-xs text-slate-300 leading-relaxed pointer-events-none">
+          <p className={`font-semibold mb-1 text-[11px] uppercase tracking-wider ${isCritical ? 'text-red-400' : 'text-orange-400'}`}>
+            Renewal Due Within 90 Days
+          </p>
+          <p>This mark expires {days !== null ? `in ${days} days` : 'soon'}. File renewal to maintain registration.</p>
         </div>
-        <button
-          type="submit"
-          disabled={loading || !input.trim()}
-          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-accent-blue/10 border border-accent-blue/30 text-accent-blue text-sm font-medium hover:bg-accent-blue/20 disabled:opacity-40 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
-        >
-          {loading
-            ? <><Loader2 className="w-4 h-4 animate-spin" /> Searching…</>
-            : `Search ${label.split(' ')[0]}`
-          }
-        </button>
-        {resultInfo && (
-          <button
-            type="button"
-            onClick={handleClear}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-navy-500 text-slate-400 text-xs hover:text-slate-200 transition-colors whitespace-nowrap"
-          >
-            <X className="w-3.5 h-3.5" />
-            Clear ({resultInfo.count} found)
-          </button>
-        )}
-      </form>
-      {loading && (
-        <span className="text-xs text-accent-blue whitespace-nowrap hidden sm:inline">{loadingMsg}</span>
       )}
-    </div>
+    </span>
   )
 }
 
 // ── main Portfolio component ──────────────────────────────────────────────────
 
-export default function Portfolio({ data }) {
-  const [search,        setSearch]        = useState('')
-  const [status,        setStatus]        = useState('All')
-  const [registry,      setRegistry]      = useState('All')
-  const [country,       setCountry]       = useState('All')
-  const [sortKey,       setSortKey]       = useState('markName')
-  const [sortDir,       setSortDir]       = useState('asc')
-  const [page,          setPage]          = useState(1)
+/**
+ * Props:
+ *   data           — combined deduped trademark array from App.jsx
+ *   registryStatus — { [registryId]: { status, count, error, lastFetched } }
+ *   progress       — { current, total, msg } | null
+ *   lastUpdated    — Date | null
+ *   onRefresh      — () => void
+ */
+export default function Portfolio({ data, registryStatus = {}, progress, lastUpdated, onRefresh }) {
+  const [search,   setSearch]   = useState('')
+  const [status,   setStatus]   = useState('All')
+  const [registry, setRegistry] = useState('All')
+  const [country,  setCountry]  = useState('All')
+  const [sortKey,  setSortKey]  = useState('markName')
+  const [sortDir,  setSortDir]  = useState('asc')
+  const [page,     setPage]     = useState(1)
 
-  // Live WIPO results
-  const [wipoResults,   setWipoResults]   = useState([])
-  const [wipoLoading,   setWipoLoading]   = useState(false)
-  const [wipoError,     setWipoError]     = useState(null)
-
-  // Live USPTO results
-  const [usptoResults,    setUsptoResults]    = useState([])
-  const [usptoLoading,    setUsptoLoading]    = useState(false)
-  const [usptoError,      setUsptoError]      = useState(null)
-
-  // Live IP India results
-  const [ipIndiaResults,  setIpIndiaResults]  = useState([])
-  const [ipIndiaLoading,  setIpIndiaLoading]  = useState(false)
-  const [ipIndiaError,    setIpIndiaError]    = useState(null)
-
-  // Live ILPO results
-  const [ilpoResults,     setIlpoResults]     = useState([])
-  const [ilpoLoading,     setIlpoLoading]     = useState(false)
-  const [ilpoError,       setIlpoError]       = useState(null)
-
-  // Live EUIPO results
-  const [euipoResults,    setEuipoResults]    = useState([])
-  const [euipoLoading,    setEuipoLoading]    = useState(false)
-  const [euipoError,      setEuipoError]      = useState(null)
-
-  // Combined: static sample + all live registries
-  const combined = useMemo(
-    () => [...data, ...wipoResults, ...usptoResults, ...ipIndiaResults, ...ilpoResults, ...euipoResults],
-    [data, wipoResults, usptoResults, ipIndiaResults, ilpoResults, euipoResults]
-  )
-
-  const statuses   = ['All', ...new Set(combined.map(t => t.status))]
-  const registries = ['All', ...new Set(combined.map(t => t.registry))]
-  const countries  = ['All', ...new Set(combined.map(t => t.country))]
+  const statuses   = useMemo(() => ['All', ...new Set(data.map(t => t.status))],   [data])
+  const registries = useMemo(() => ['All', ...new Set(data.map(t => t.registry))], [data])
+  const countries  = useMemo(() => ['All', ...new Set(data.map(t => t.country))],  [data])
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase()
-    return combined
+    return data
       .filter(t => {
         if (q && !`${t.markName} ${t.applicant} ${t.serialNo} ${t.regNo}`.toLowerCase().includes(q)) return false
         if (status   !== 'All' && t.status   !== status)   return false
@@ -435,7 +334,7 @@ export default function Portfolio({ data }) {
         const vb = (b[sortKey] || '').toString()
         return sortDir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va)
       })
-  }, [combined, search, status, registry, country, sortKey, sortDir])
+  }, [data, search, status, registry, country, sortKey, sortDir])
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const rows       = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
@@ -450,30 +349,14 @@ export default function Portfolio({ data }) {
     setSearch(''); setStatus('All'); setRegistry('All'); setCountry('All'); setPage(1)
   }
 
-  const handleWipoResults    = useCallback(r => { setWipoResults(r);    setPage(1) }, [])
-  const handleUsptoResults   = useCallback(r => { setUsptoResults(r);   setPage(1) }, [])
-  const handleIpIndiaResults = useCallback(r => { setIpIndiaResults(r); setPage(1) }, [])
-  const handleIlpoResults    = useCallback(r => { setIlpoResults(r);    setPage(1) }, [])
-  const handleEuipoResults   = useCallback(r => { setEuipoResults(r);   setPage(1) }, [])
-
-  const liveCount = wipoResults.length + usptoResults.length + ipIndiaResults.length + ilpoResults.length + euipoResults.length
-
-  // Count maintenance alerts across all live USPTO results
-  const maintenanceCount = usptoResults.filter(r => r.maintenanceAlert).length
-
-  // Count IP India marks requiring active monitoring
-  const indiaAlertCount  = ipIndiaResults.filter(r => r.ipIndiaAlert).length
-
-  // Count ILPO marks approaching expiry within 180 days
-  const ilpoExpiryCount  = ilpoResults.filter(r => r.ilpoExpiryAlert).length
-
+  // Summary counts
   const summary = {
-    total:    combined.length,
-    active:   combined.filter(t => t.status === 'Active').length,
-    pending:  combined.filter(t => t.status === 'Pending').length,
-    expiring: combined.filter(t => t.status === 'Expiring Soon').length,
-    opposed:  combined.filter(t => t.status === 'Opposed').length,
-    expired:  combined.filter(t => t.status === 'Expired').length,
+    total:    data.length,
+    active:   data.filter(t => t.status === 'Active').length,
+    pending:  data.filter(t => t.status === 'Pending').length,
+    expiring: data.filter(t => t.status === 'Expiring Soon').length,
+    opposed:  data.filter(t => t.status === 'Opposed').length,
+    expired:  data.filter(t => t.status === 'Expired').length,
   }
 
   const summaryCards = [
@@ -485,85 +368,79 @@ export default function Portfolio({ data }) {
     { label: 'Expired',       value: summary.expired,  color: 'text-slate-400'   },
   ]
 
-  const anyLoading = wipoLoading || usptoLoading || ipIndiaLoading || ilpoLoading || euipoLoading
+  // Registry status derived counts
+  const liveCount     = Object.values(registryStatus).reduce((sum, s) => sum + (s.count || 0), 0)
+  const isRefreshing  = progress !== null
+  const pendingRegs   = REGISTRIES.filter(r => registryStatus[r.id]?.status === 'pending')
+  const errorRegs     = REGISTRIES.filter(r => registryStatus[r.id]?.status === 'error')
+
+  // Alert counts
+  const maintenanceCount = data.filter(r => r.maintenanceAlert).length
+  const indiaAlertCount  = data.filter(r => r.ipIndiaAlert).length
+  const ilpoExpiryCount  = data.filter(r => r.ilpoExpiryAlert).length
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
 
-      {/* ── Live search bars ── */}
-      <div className="space-y-2">
-        <LiveSearchBar
-          label="WIPO Madrid"
-          placeholder="Holder name (e.g. Yanolja)"
-          apiPath="/api/wipo-search"
-          queryParam="holder"
-          loadingMsg="Fetching from WIPO Madrid Monitor…"
-          onResults={handleWipoResults}
-          onLoading={setWipoLoading}
-          onError={setWipoError}
-        />
-        <LiveSearchBar
-          label="USPTO"
-          placeholder="Owner/applicant name (e.g. Yanolja)"
-          apiPath="/api/uspto-search"
-          queryParam="owner"
-          loadingMsg="Fetching from USPTO TSDR…"
-          onResults={handleUsptoResults}
-          onLoading={setUsptoLoading}
-          onError={setUsptoError}
-        />
-        <LiveSearchBar
-          label="IP India"
-          placeholder="Applicant name (e.g. Yanolja)"
-          apiPath="/api/ipindia-search"
-          queryParam="holder"
-          loadingMsg="Querying IP India registry... this may take up to 30 seconds"
-          onResults={handleIpIndiaResults}
-          onLoading={setIpIndiaLoading}
-          onError={setIpIndiaError}
-        />
-        <LiveSearchBar
-          label="ILPO"
-          placeholder="Owner name (e.g. Go Global Travel)"
-          apiPath="/api/ilpo-search"
-          queryParam="holder"
-          loadingMsg="Fetching from Israel trademark register…"
-          onResults={handleIlpoResults}
-          onLoading={setIlpoLoading}
-          onError={setIlpoError}
-        />
-        <LiveSearchBar
-          label="EUIPO"
-          placeholder="Applicant name (e.g. Yanolja)"
-          apiPath="/api/euipo-search"
-          queryParam="holder"
-          loadingMsg="Fetching from EUIPO Open Data…"
-          onResults={handleEuipoResults}
-          onLoading={setEuipoLoading}
-          onError={setEuipoError}
-        />
+      {/* ── Refresh All button + progress ── */}
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3 min-w-0">
+          {isRefreshing ? (
+            <>
+              <Loader2 className="w-4 h-4 text-accent-blue animate-spin flex-shrink-0" />
+              <div className="min-w-0">
+                <p className="text-sm text-accent-blue truncate">{progress.msg}</p>
+                <div className="mt-1 h-1.5 bg-navy-600 rounded-full overflow-hidden w-64">
+                  <div
+                    className="h-full bg-accent-blue rounded-full transition-all duration-300"
+                    style={{ width: `${Math.min(100, (progress.current / progress.total) * 100)}%` }}
+                  />
+                </div>
+              </div>
+            </>
+          ) : lastUpdated ? (
+            <p className="text-xs text-slate-500">
+              Last updated {format(lastUpdated, 'dd MMM yyyy HH:mm')} UTC
+              {liveCount > 0 && <span className="ml-2 text-accent-blue">· {liveCount} live results</span>}
+            </p>
+          ) : (
+            <p className="text-xs text-slate-500">Awaiting data…</p>
+          )}
+        </div>
+        <button
+          onClick={onRefresh}
+          disabled={isRefreshing}
+          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-accent-blue/10 border border-accent-blue/30 text-accent-blue text-sm hover:bg-accent-blue/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors whitespace-nowrap flex-shrink-0"
+        >
+          <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+          Refresh All Registries
+        </button>
       </div>
 
-      {/* ── Error banners ── */}
-      {[wipoError, usptoError, ipIndiaError, ilpoError, euipoError].filter(Boolean).map((err, i) => {
-        const isPending = err.startsWith('PENDING:')
-        const msg       = isPending ? err.slice(8) : err
-        return isPending ? (
-          <div key={i} className="flex items-start gap-3 px-4 py-3 rounded-lg bg-indigo-500/10 border border-indigo-500/25 text-indigo-300 text-sm">
-            <Clock className="w-4 h-4 flex-shrink-0 mt-0.5 text-indigo-400" />
-            <span className="leading-relaxed">
-              <span className="font-semibold text-indigo-400">Pending credentials — </span>{msg}
-            </span>
-          </div>
-        ) : (
-          <div key={i} className="flex items-start gap-3 px-4 py-3 rounded-lg bg-red-500/10 border border-red-500/25 text-red-400 text-sm">
-            <X className="w-4 h-4 flex-shrink-0 mt-0.5" />
-            <span className="leading-relaxed">{msg}</span>
-          </div>
-        )
-      })}
+      {/* ── Pending-credentials info bar ── */}
+      {pendingRegs.length > 0 && !isRefreshing && (
+        <div className="flex items-start gap-3 px-4 py-3 rounded-lg bg-indigo-500/10 border border-indigo-500/25 text-indigo-300 text-sm">
+          <Clock className="w-4 h-4 flex-shrink-0 mt-0.5 text-indigo-400" />
+          <span className="leading-relaxed">
+            <span className="font-semibold text-indigo-400">Pending credentials — </span>
+            {pendingRegs.map(r => r.label).join(', ')} require API credentials to fetch data.
+            Configure them in <button className="underline hover:text-indigo-200 transition-colors" onClick={() => {}}>API Setup</button>.
+          </span>
+        </div>
+      )}
 
-      {/* ── ILPO expiry banner (180-day / 6-month grace window) ── */}
+      {/* ── Error banners ── */}
+      {errorRegs.map(reg => (
+        <div key={reg.id} className="flex items-start gap-3 px-4 py-3 rounded-lg bg-red-500/10 border border-red-500/25 text-red-400 text-sm">
+          <X className="w-4 h-4 flex-shrink-0 mt-0.5" />
+          <span className="leading-relaxed">
+            <span className="font-semibold">{reg.label} unavailable — </span>
+            {registryStatus[reg.id]?.error || 'Fetch failed'}. Results for this registry may be incomplete.
+          </span>
+        </div>
+      ))}
+
+      {/* ── ILPO expiry banner ── */}
       {ilpoExpiryCount > 0 && (
         <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-teal-500/10 border border-teal-500/25 text-teal-400 text-sm">
           <AlertTriangle className="w-4 h-4 flex-shrink-0" />
@@ -578,12 +455,12 @@ export default function Portfolio({ data }) {
         <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-orange-500/10 border border-orange-500/25 text-orange-400 text-sm">
           <AlertTriangle className="w-4 h-4 flex-shrink-0" />
           <span>
-            <strong>{indiaAlertCount}</strong> IP India mark{indiaAlertCount !== 1 ? 's require' : ' requires'} active monitoring — objected or opposed marks in a registry with known processing backlogs and unpredictable status changes.
+            <strong>{indiaAlertCount}</strong> IP India mark{indiaAlertCount !== 1 ? 's require' : ' requires'} active monitoring — objected or opposed marks in a registry with known processing backlogs.
           </span>
         </div>
       )}
 
-      {/* ── Maintenance alert banner (USPTO compliance) ── */}
+      {/* ── USPTO maintenance banner ── */}
       {maintenanceCount > 0 && (
         <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-amber-500/10 border border-amber-500/25 text-amber-400 text-sm">
           <ShieldAlert className="w-4 h-4 flex-shrink-0" />
@@ -626,9 +503,9 @@ export default function Portfolio({ data }) {
         </div>
 
         {[
-          { value: status,   onChange: v => { setStatus(v);   setPage(1) }, opts: statuses,   placeholder: 'All Statuses'    },
-          { value: registry, onChange: v => { setRegistry(v); setPage(1) }, opts: registries, placeholder: 'All Registries'  },
-          { value: country,  onChange: v => { setCountry(v);  setPage(1) }, opts: countries,  placeholder: 'All Countries'   },
+          { value: status,   onChange: v => { setStatus(v);   setPage(1) }, opts: statuses,   placeholder: 'All Statuses'   },
+          { value: registry, onChange: v => { setRegistry(v); setPage(1) }, opts: registries, placeholder: 'All Registries' },
+          { value: country,  onChange: v => { setCountry(v);  setPage(1) }, opts: countries,  placeholder: 'All Countries'  },
         ].map((sel, i) => (
           <select
             key={i}
@@ -653,16 +530,11 @@ export default function Portfolio({ data }) {
       {/* ── Table ── */}
       <div className="bg-navy-800 border border-navy-500 rounded-xl overflow-hidden">
 
-        {/* Loading banner */}
-        {anyLoading && (
+        {/* Refresh progress banner inside table */}
+        {isRefreshing && (
           <div className="flex items-center justify-center gap-3 py-4 border-b border-navy-500 bg-accent-blue/5">
             <Loader2 className="w-4 h-4 text-accent-blue animate-spin" />
-            <span className="text-sm text-accent-blue">
-              {ipIndiaLoading
-                ? 'Querying IP India registry... this may take up to 30 seconds'
-                : `Fetching live data from ${[wipoLoading && 'WIPO', usptoLoading && 'USPTO', ilpoLoading && 'ILPO', euipoLoading && 'EUIPO'].filter(Boolean).join(', ')}…`
-              }
-            </span>
+            <span className="text-sm text-accent-blue">{progress.msg}</span>
           </div>
         )}
 
@@ -673,18 +545,21 @@ export default function Portfolio({ data }) {
                 {COLUMNS.map(col => (
                   <th
                     key={col.key}
-                    onClick={() => sort(col.key)}
+                    onClick={() => col.key !== 'flags' && sort(col.key)}
                     style={{ minWidth: col.w }}
-                    className="px-4 py-3 text-left text-[11px] font-semibold text-slate-400 uppercase tracking-wider cursor-pointer hover:text-accent-blue transition-colors select-none whitespace-nowrap"
+                    className={`px-4 py-3 text-left text-[11px] font-semibold text-slate-400 uppercase tracking-wider transition-colors select-none whitespace-nowrap
+                      ${col.key !== 'flags' ? 'cursor-pointer hover:text-accent-blue' : 'cursor-default'}
+                    `}
                   >
                     <span className="flex items-center gap-1">
                       {col.label}
-                      {sortKey === col.key
-                        ? sortDir === 'asc'
-                          ? <ChevronUp   className="w-3.5 h-3.5 text-accent-blue flex-shrink-0" />
-                          : <ChevronDown className="w-3.5 h-3.5 text-accent-blue flex-shrink-0" />
-                        : <ChevronUp className="w-3.5 h-3.5 opacity-0 flex-shrink-0" />
-                      }
+                      {col.key !== 'flags' && (
+                        sortKey === col.key
+                          ? sortDir === 'asc'
+                            ? <ChevronUp   className="w-3.5 h-3.5 text-accent-blue flex-shrink-0" />
+                            : <ChevronDown className="w-3.5 h-3.5 text-accent-blue flex-shrink-0" />
+                          : <ChevronUp className="w-3.5 h-3.5 opacity-0 flex-shrink-0" />
+                      )}
                     </span>
                   </th>
                 ))}
@@ -705,7 +580,7 @@ export default function Portfolio({ data }) {
                   {/* Mark name */}
                   <td className="px-4 py-3 font-semibold text-white whitespace-nowrap">{tm.markName}</td>
 
-                  {/* Registry badge */}
+                  {/* Registry badge + SANDBOX tag */}
                   <td className="px-4 py-3">
                     <div className="flex flex-col gap-1 items-start">
                       <span className={`px-2 py-0.5 rounded text-xs font-mono font-medium border ${REGISTRY_STYLES[tm.registry] || REGISTRY_DEFAULT}`}>
@@ -745,30 +620,39 @@ export default function Portfolio({ data }) {
                   <td className="px-4 py-3 text-xs text-slate-400 whitespace-nowrap">{fmt(tm.registrationDate)}</td>
                   <td className="px-4 py-3 text-xs whitespace-nowrap"><ExpiryCell dateStr={tm.expiryDate} /></td>
 
-                  {/* Status + compliance badges */}
+                  {/* Status pill */}
+                  <td className="px-4 py-3 whitespace-nowrap">
+                    <span className={`px-2.5 py-1 rounded-full text-xs font-medium border ${STATUS_STYLES[tm.status] || STATUS_STYLES['Active']}`}>
+                      {tm.status}
+                    </span>
+                  </td>
+
+                  {/* Flags column — all alert badges */}
                   <td className="px-4 py-3 whitespace-nowrap">
                     <div className="flex flex-wrap items-center gap-1">
-                      <span className={`px-2.5 py-1 rounded-full text-xs font-medium border ${STATUS_STYLES[tm.status] || STATUS_STYLES['Active']}`}>
-                        {tm.status}
-                      </span>
-                      {/* USPTO maintenance alert: Section 8 / 15 compliance */}
-                      <MaintenanceBadge alert={tm.maintenanceAlert} />
-                      {/* USPTO pending office action */}
-                      <OfficeActionBadge pending={tm.pendingOfficeAction} />
-                      {/* IP India objected / opposed monitoring badge */}
+                      <ExpiryFlagBadge    expiryDate={tm.expiryDate} registry={tm.registry} status={tm.status} />
+                      <MaintenanceBadge   alert={tm.maintenanceAlert} />
+                      <OfficeActionBadge  pending={tm.pendingOfficeAction} />
                       <IPIndiaWarningBadge alert={tm.ipIndiaAlert} />
-                      {/* ILPO 180-day expiry / grace period badge */}
-                      <ILPOExpiryBadge alert={tm.ilpoExpiryAlert} />
+                      <ILPOExpiryBadge   alert={tm.ilpoExpiryAlert} />
                     </div>
                   </td>
                 </tr>
               ))}
 
-              {rows.length === 0 && !anyLoading && (
+              {rows.length === 0 && !isRefreshing && (
                 <tr>
                   <td colSpan={COLUMNS.length} className="px-4 py-16 text-center text-slate-500">
                     No records match your filters.{' '}
                     <button onClick={resetFilters} className="text-accent-blue hover:underline">Clear filters</button>
+                  </td>
+                </tr>
+              )}
+
+              {rows.length === 0 && isRefreshing && (
+                <tr>
+                  <td colSpan={COLUMNS.length} className="px-4 py-16 text-center text-slate-500">
+                    Fetching live data…
                   </td>
                 </tr>
               )}

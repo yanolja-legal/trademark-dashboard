@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
-import { Key, Globe, Bell, RefreshCw, Check, Eye, EyeOff, Zap, Wifi, Building2, Loader2 } from 'lucide-react'
+import { Key, Globe, Bell, RefreshCw, Check, Eye, EyeOff, Zap, Wifi, Building2, Loader2, CheckCircle2, XCircle, Clock, AlertCircle } from 'lucide-react'
 import { SUBSIDIARIES } from '../subsidiaries.js'
+import { REGISTRIES }   from '../registries.js'
 
 // ── Entity chips ─────────────────────────────────────────────────────────────
 // Renders the full subsidiary list as read-only chips.
@@ -117,7 +118,7 @@ function Toggle({ label, description, defaultChecked = false }) {
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function ApiSetup() {
+export default function ApiSetup({ registryStatus = {} }) {
   const [syncFreq,    setSyncFreq]    = useState('daily')
   const [syncWindow,  setSyncWindow]  = useState('00:00 – 06:00 UTC')
   const [warnPeriod,  setWarnPeriod]  = useState('90')
@@ -160,14 +161,73 @@ export default function ApiSetup() {
   return (
     <div className="space-y-5 max-w-4xl">
 
-      {/* Status banner */}
-      <div className="flex items-center gap-3 px-5 py-3 bg-green-500/5 border border-green-500/20 rounded-xl">
-        <span className="relative flex h-2.5 w-2.5">
-          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
-          <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500" />
-        </span>
-        <p className="text-sm text-green-400 font-medium">All registry connections are operational</p>
-        <span className="ml-auto text-xs text-slate-400">Checked: 2026-04-09 08:32 UTC</span>
+      {/* ── Registry Status Panel ── */}
+      <div className="bg-navy-800 border border-navy-500 rounded-xl overflow-hidden">
+        <div className="px-5 py-4 border-b border-navy-500">
+          <h3 className="font-semibold text-white text-sm">Registry Connection Status</h3>
+          <p className="text-xs text-slate-400 mt-0.5">Live status from last dashboard refresh</p>
+        </div>
+        <div className="divide-y divide-navy-600/30">
+          {REGISTRIES.map(reg => {
+            const rs      = registryStatus[reg.id] ?? { status: 'idle' }
+            const status  = rs.status
+            const isOk      = status === 'ok'
+            const isLoading = status === 'loading'
+            const isPending = status === 'pending'
+            const isError   = status === 'error'
+            const isIdle    = status === 'idle'
+
+            let icon, iconCls, labelCls, statusLabel
+
+            if (isLoading) {
+              icon = <Loader2 className="w-4 h-4 animate-spin" />
+              iconCls  = 'text-accent-blue'
+              labelCls = 'text-accent-blue'
+              statusLabel = 'Fetching…'
+            } else if (isOk) {
+              icon = <CheckCircle2 className="w-4 h-4" />
+              iconCls  = 'text-green-400'
+              labelCls = 'text-green-400'
+              const isSandbox = rs.lastFetched && reg.id === 'euipo'
+              statusLabel = `Connected${!reg.requiresKey ? ' (no key needed)' : ''} · ${rs.count} results`
+            } else if (isPending) {
+              icon = <Clock className="w-4 h-4" />
+              iconCls  = 'text-indigo-400'
+              labelCls = 'text-indigo-400'
+              statusLabel = reg.apiPath ? 'Pending credentials' : 'Not yet implemented'
+            } else if (isError) {
+              icon = <XCircle className="w-4 h-4" />
+              iconCls  = 'text-red-400'
+              labelCls = 'text-red-400'
+              statusLabel = `Error — ${rs.error || 'fetch failed'}`
+            } else {
+              icon = <AlertCircle className="w-4 h-4" />
+              iconCls  = 'text-slate-500'
+              labelCls = 'text-slate-500'
+              statusLabel = 'Not fetched yet'
+            }
+
+            return (
+              <div key={reg.id} className="flex items-center justify-between px-5 py-3 hover:bg-navy-700/20 transition-colors">
+                <div className="flex items-center gap-3">
+                  <span className={iconCls}>{icon}</span>
+                  <div>
+                    <p className="text-sm font-medium text-slate-200">{reg.label}</p>
+                    <p className="text-xs text-slate-500">{reg.note}</p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className={`text-xs font-medium ${labelCls}`}>{statusLabel}</p>
+                  {rs.lastFetched && (
+                    <p className="text-[10px] text-slate-500 mt-0.5">
+                      {new Date(rs.lastFetched).toLocaleTimeString()}
+                    </p>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
