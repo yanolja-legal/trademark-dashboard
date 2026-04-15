@@ -1,7 +1,33 @@
 import React, { useState } from 'react'
-import { Key, Globe, Bell, RefreshCw, Check, Eye, EyeOff, Zap, Wifi } from 'lucide-react'
+import { Key, Globe, Bell, RefreshCw, Check, Eye, EyeOff, Zap, Wifi, Building2, Loader2 } from 'lucide-react'
+import { SUBSIDIARIES } from '../subsidiaries.js'
 
-/* ── Sub-components ──────────────────────────────────────────────────────── */
+// ── Entity chips ─────────────────────────────────────────────────────────────
+// Renders the full subsidiary list as read-only chips.
+// Adding a new entry to SUBSIDIARIES automatically appears here.
+
+function EntityChips({ label = 'Covered entities' }) {
+  const active = SUBSIDIARIES.filter(s => s.active)
+  return (
+    <div>
+      <p className="text-xs font-medium text-slate-400 mb-2">{label}</p>
+      <div className="flex flex-wrap gap-1.5">
+        {active.map(s => (
+          <span
+            key={s.id}
+            title={s.name}
+            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-navy-700 border border-navy-500 text-slate-300"
+          >
+            <Building2 className="w-2.5 h-2.5 text-slate-500 flex-shrink-0" />
+            {s.shortName}
+          </span>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ── Sub-components ────────────────────────────────────────────────────────────
 
 function Section({ icon: Icon, title, subtitle, accent, children }) {
   return (
@@ -89,7 +115,7 @@ function Toggle({ label, description, defaultChecked = false }) {
   )
 }
 
-/* ── Main component ──────────────────────────────────────────────────────── */
+// ── Main component ────────────────────────────────────────────────────────────
 
 export default function ApiSetup() {
   const [syncFreq,    setSyncFreq]    = useState('daily')
@@ -98,8 +124,37 @@ export default function ApiSetup() {
   const [webhookUrl,  setWebhookUrl]  = useState('')
   const [webhookTest, setWebhookTest] = useState(null)
 
+  // EUIPO connection test state
+  const [euipoTest,   setEuipoTest]   = useState(null)    // null | 'loading' | { ok, label, detail }
+  const [euipoTested, setEuipoTested] = useState(false)
+
+  // Default WIPO holder: first active subsidiary
+  const defaultHolder = SUBSIDIARIES.find(s => s.active)?.name ?? ''
+
   function testWebhook() {
     setWebhookTest({ ok: true, time: new Date().toLocaleTimeString() })
+  }
+
+  async function testEuipo() {
+    setEuipoTest('loading')
+    setEuipoTested(false)
+    try {
+      // Use a minimal holder query — if pending, credentials are missing; if error, auth failed
+      const res  = await fetch('/api/euipo-search?holder=test')
+      const json = await res.json()
+      if (json.status === 'pending') {
+        setEuipoTest({ ok: false, label: 'Pending credentials', detail: json.message })
+      } else if (!res.ok) {
+        setEuipoTest({ ok: false, label: 'Connection failed', detail: json.error || `HTTP ${res.status}` })
+      } else {
+        const env = json.isSandbox ? 'Sandbox' : 'Production'
+        setEuipoTest({ ok: true, label: `Connected (${env})`, detail: `EUIPO ${env} API is reachable` })
+      }
+    } catch (err) {
+      setEuipoTest({ ok: false, label: 'Network error', detail: err.message })
+    } finally {
+      setEuipoTested(true)
+    }
   }
 
   return (
@@ -120,29 +175,74 @@ export default function ApiSetup() {
         {/* USPTO */}
         <Section icon={Key} title="USPTO" subtitle="United States Patent and Trademark Office" accent="#00b4d8">
           <ApiKeyInput label="API Key"   defaultValue="uspto_live_a1b2c3d4e5f6" />
-          <ApiKeyInput label="Client ID" defaultValue="nexaflow_client_001" placeholder="client_id" />
+          <ApiKeyInput label="Client ID" defaultValue="yanolja_client_001" placeholder="client_id" />
           <ApiKeyInput label="Base URL"  defaultValue="https://developer.uspto.gov/trademark/v1" readOnly />
+          <EntityChips />
         </Section>
 
         {/* EUIPO */}
-        <Section icon={Globe} title="EUIPO" subtitle="European Union Intellectual Property Office" accent="#a855f7">
-          <ApiKeyInput label="API Key"         defaultValue="euipo_key_9g8h7i6j5k4l" />
-          <ApiKeyInput label="Organisation ID" defaultValue="NEXAFLOW_EU_001" placeholder="org_id" />
-          <ApiKeyInput label="Base URL"        defaultValue="https://euipo.europa.eu/copla/trademark/data" readOnly />
+        <Section icon={Globe} title="EUIPO" subtitle="European Union Intellectual Property Office — OAuth2 client credentials" accent="#a855f7">
+          <ApiKeyInput label="Client ID"     defaultValue="$EUIPO_CLIENT_ID"     placeholder="OAuth2 client_id"     readOnly />
+          <ApiKeyInput label="Client Secret" defaultValue="$EUIPO_CLIENT_SECRET" placeholder="OAuth2 client_secret" readOnly />
+          <div>
+            <p className="text-xs font-medium text-slate-400 mb-1.5">Environment</p>
+            <div className="flex items-center gap-2 px-3 py-2 bg-navy-700 border border-navy-500 rounded-lg">
+              <span className="font-mono text-sm text-slate-300">EUIPO_ENV</span>
+              <span className="text-slate-500 text-xs mx-1">=</span>
+              <span className="font-mono text-sm text-indigo-400">sandbox</span>
+              <span className="ml-auto text-xs text-slate-500">set to <code className="text-indigo-400">production</code> to use live API</span>
+            </div>
+          </div>
+          <ApiKeyInput label="Token URL" defaultValue="https://euipo.europa.eu/idm2/oauth/token" readOnly />
+          <ApiKeyInput label="API Base"  defaultValue="https://euipo.europa.eu/copla/trademark/data/v1" readOnly />
+
+          {/* Test connection button */}
+          <div>
+            <button
+              onClick={testEuipo}
+              disabled={euipoTest === 'loading'}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg border text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-indigo-500/10 border-indigo-500/30 text-indigo-400 hover:bg-indigo-500/20"
+            >
+              {euipoTest === 'loading'
+                ? <><Loader2 className="w-4 h-4 animate-spin" /> Testing…</>
+                : <><Wifi className="w-4 h-4" /> Test EUIPO Connection</>
+              }
+            </button>
+            {euipoTested && euipoTest && euipoTest !== 'loading' && (
+              <p className={`text-xs mt-2 flex items-center gap-1.5 ${euipoTest.ok ? 'text-green-400' : euipoTest.label === 'Pending credentials' ? 'text-indigo-400' : 'text-red-400'}`}>
+                {euipoTest.ok
+                  ? <Check className="w-3.5 h-3.5" />
+                  : euipoTest.label === 'Pending credentials'
+                    ? <span className="w-3.5 h-3.5 inline-flex items-center justify-center text-[10px]">⏳</span>
+                    : <span className="w-3.5 h-3.5 inline-flex items-center justify-center">✕</span>
+                }
+                <span className="font-medium">{euipoTest.label}</span>
+                {euipoTest.detail && <span className="text-slate-500"> — {euipoTest.detail}</span>}
+              </p>
+            )}
+          </div>
+
+          <EntityChips />
         </Section>
 
         {/* WIPO */}
-        <Section icon={Wifi} title="WIPO Madrid Monitor" subtitle="World Intellectual Property Organization" accent="#00ff88">
-          <ApiKeyInput label="API Token" defaultValue="wipo_token_m3n4o5p6q7r8" />
+        <Section icon={Wifi} title="WIPO Madrid Monitor" subtitle="World Intellectual Property Organization — public API, no auth required" accent="#00ff88">
           <div>
-            <label className="block text-xs font-medium text-slate-400 mb-1.5">Holder ID</label>
-            <input
-              type="text"
-              defaultValue="NEXAFLOW-TECH-INTL"
+            <label className="block text-xs font-medium text-slate-400 mb-1.5">
+              Holder Name <span className="text-slate-500 font-normal">(used in live search)</span>
+            </label>
+            <select
+              defaultValue={defaultHolder}
               className="w-full px-3 py-2.5 bg-navy-700 border border-navy-500 rounded-lg text-sm text-slate-200 focus:outline-none focus:border-accent-blue/50 transition-colors"
-            />
+            >
+              <option value="">— select a subsidiary —</option>
+              {SUBSIDIARIES.filter(s => s.active).map(s => (
+                <option key={s.id} value={s.name}>{s.name}</option>
+              ))}
+            </select>
           </div>
-          <ApiKeyInput label="Base URL" defaultValue="https://www.wipo.int/madrid/monitor/en/" readOnly />
+          <ApiKeyInput label="Base URL" defaultValue="https://www.wipo.int/madrid/monitor/api/v1" readOnly />
+          <EntityChips label="Searchable entities" />
         </Section>
 
         {/* Notifications */}
@@ -173,11 +273,11 @@ export default function ApiSetup() {
             )}
           </div>
           <div className="space-y-3 pt-1">
-            <Toggle label="Renewal Alerts"   description="Notify 90, 60, and 30 days before expiry"   defaultChecked />
+            <Toggle label="Renewal Alerts"    description="Notify 90, 60, and 30 days before expiry"  defaultChecked />
             <Toggle label="Opposition Notices" description="Immediate alert on new oppositions"       defaultChecked />
-            <Toggle label="Status Changes"   description="Notify on any status transition"             />
+            <Toggle label="Status Changes"    description="Notify on any status transition"            />
             <Toggle label="New Registrations" description="Notify when marks are registered"          defaultChecked />
-            <Toggle label="Weekly Digest"    description="Summary email every Monday 09:00 UTC"        defaultChecked />
+            <Toggle label="Weekly Digest"     description="Summary email every Monday 09:00 UTC"      defaultChecked />
           </div>
         </Section>
       </div>

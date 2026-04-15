@@ -1,12 +1,28 @@
-// 25 sample trademark records across 4 entities
-// Expiry dates are set relative to 2026-04-09 so Alert panels fire realistically
+// Sample trademark records — applicant names are derived from SUBSIDIARIES
+// so that renaming a subsidiary in subsidiaries.js automatically updates here.
+// Expiry dates are set relative to 2026-04-09 so Alert panels fire realistically.
+
+import { SUBSIDIARIES } from '../subsidiaries.js'
+
+// Shorthand lookup: sub[id] → full legal name
+const sub = Object.fromEntries(SUBSIDIARIES.map(s => [s.id, s.name]))
+
+// Mapping used in this sample set:
+//   sub[3]  Yanolja Co., Ltd.              ← was "Nexaflow Technologies Inc."
+//   sub[2]  Go Global Travel Ltd.          ← was "Nexaflow Europe GmbH"
+//   sub[1]  Yanolja Cloud Pte. Ltd.        ← was "Nexaflow Asia Pacific Ltd."
+//   sub[8]  Innsoft, Inc.                  ← was "CloudSoft Corp."
+//
+// Subsidiaries with no sample marks (sub[4,5,6,7]) still appear in ByEntity
+// because ByEntity reads from SUBSIDIARIES, not from this data.
 
 export const trademarks = [
-  // ── Nexaflow Technologies Inc. (parent, 7 marks) ──────────────────────────
+
+  // ── Yanolja Co., Ltd. (7 marks) ───────────────────────────────────────────
   {
     id: 1,
-    applicant: 'Nexaflow Technologies Inc.',
-    markName: 'NEXAFLOW',
+    applicant: sub[3],
+    markName: 'YANOLJA',
     registry: 'USPTO',
     country: 'United States',
     serialNo: '97/445123',
@@ -21,8 +37,8 @@ export const trademarks = [
   },
   {
     id: 2,
-    applicant: 'Nexaflow Technologies Inc.',
-    markName: 'NEXAFLOW',
+    applicant: sub[3],
+    markName: 'YANOLJA',
     registry: 'EUIPO',
     country: 'European Union',
     serialNo: '018756432',
@@ -37,8 +53,8 @@ export const trademarks = [
   },
   {
     id: 3,
-    applicant: 'Nexaflow Technologies Inc.',
-    markName: 'NEXAFLOW',
+    applicant: sub[3],
+    markName: 'YANOLJA',
     registry: 'WIPO',
     country: 'International',
     serialNo: 'WO2022/098765',
@@ -53,8 +69,8 @@ export const trademarks = [
   },
   {
     id: 4,
-    applicant: 'Nexaflow Technologies Inc.',
-    markName: 'NF NEXAFLOW & Device',
+    applicant: sub[3],
+    markName: 'YANOLJA & Device',
     registry: 'USPTO',
     country: 'United States',
     serialNo: '97/556789',
@@ -69,8 +85,8 @@ export const trademarks = [
   },
   {
     id: 5,
-    applicant: 'Nexaflow Technologies Inc.',
-    markName: 'NEXAFLOW PRO',
+    applicant: sub[3],
+    markName: 'YANOLJA PRO',
     registry: 'USPTO',
     country: 'United States',
     serialNo: '98/112233',
@@ -85,14 +101,14 @@ export const trademarks = [
   },
   {
     id: 6,
-    applicant: 'Nexaflow Technologies Inc.',
-    markName: 'FLOWSENSE',
+    applicant: sub[3],
+    markName: 'YA TRAVEL',
     registry: 'USPTO',
     country: 'United States',
     serialNo: '97/889012',
     regNo: '6,754,321',
     kindOfMark: 'Word',
-    ncl: '9',
+    ncl: '39',
     applicationDate: '2021-11-05',
     publicationDate: '2022-05-18',
     registrationDate: '2022-10-04',
@@ -101,8 +117,8 @@ export const trademarks = [
   },
   {
     id: 7,
-    applicant: 'Nexaflow Technologies Inc.',
-    markName: 'CLOUDNEX',
+    applicant: sub[3],
+    markName: 'YANOLJA CLOUD',
     registry: 'USPTO',
     country: 'United States',
     serialNo: '97/334455',
@@ -116,17 +132,17 @@ export const trademarks = [
     status: 'Active',
   },
 
-  // ── Nexaflow Europe GmbH (5 marks) ────────────────────────────────────────
+  // ── Go Global Travel Ltd. (5 marks) ──────────────────────────────────────
   {
     id: 8,
-    applicant: 'Nexaflow Europe GmbH',
-    markName: 'NEXAFLOW',
+    applicant: sub[2],
+    markName: 'GO GLOBAL TRAVEL',
     registry: 'EUIPO',
     country: 'European Union',
     serialNo: '018934521',
     regNo: '018934521',
     kindOfMark: 'Word',
-    ncl: '9, 35, 42',
+    ncl: '39, 43',
     applicationDate: '2023-01-10',
     publicationDate: '2023-07-22',
     registrationDate: '2023-11-30',
@@ -135,14 +151,14 @@ export const trademarks = [
   },
   {
     id: 9,
-    applicant: 'Nexaflow Europe GmbH',
-    markName: 'NEXAFLOW PRO',
+    applicant: sub[2],
+    markName: 'GGT',
     registry: 'EUIPO',
     country: 'European Union',
     serialNo: '019001234',
     regNo: '',
     kindOfMark: 'Word',
-    ncl: '9, 42',
+    ncl: '39, 43',
     applicationDate: '2023-09-05',
     publicationDate: '',
     registrationDate: '',
@@ -151,14 +167,14 @@ export const trademarks = [
   },
   {
     id: 10,
-    applicant: 'Nexaflow Europe GmbH',
-    markName: 'NEXAFLOW CONNECT',
+    applicant: sub[2],
+    markName: 'GO GLOBAL TRAVEL',
     registry: 'IPO-UK',
     country: 'United Kingdom',
     serialNo: 'UK00003789012',
     regNo: 'UK00003789012',
     kindOfMark: 'Word',
-    ncl: '9, 38, 42',
+    ncl: '39, 43',
     applicationDate: '2022-07-14',
     publicationDate: '2022-10-28',
     registrationDate: '2023-01-06',
@@ -167,14 +183,14 @@ export const trademarks = [
   },
   {
     id: 11,
-    applicant: 'Nexaflow Europe GmbH',
-    markName: 'DATASTREAM',
+    applicant: sub[2],
+    markName: 'GO GLOBAL & Device',
     registry: 'EUIPO',
     country: 'European Union',
     serialNo: '017654321',
     regNo: '017654321',
     kindOfMark: 'Combined',
-    ncl: '9, 38',
+    ncl: '39, 43',
     applicationDate: '2021-03-22',
     publicationDate: '2021-09-14',
     registrationDate: '2022-01-20',
@@ -183,14 +199,14 @@ export const trademarks = [
   },
   {
     id: 12,
-    applicant: 'Nexaflow Europe GmbH',
-    markName: 'NEXAFLOW ANALYTICS',
+    applicant: sub[2],
+    markName: 'GLOBALSTAY',
     registry: 'EUIPO',
     country: 'European Union',
     serialNo: '018501234',
     regNo: '',
     kindOfMark: 'Word',
-    ncl: '42',
+    ncl: '43',
     applicationDate: '2023-04-17',
     publicationDate: '2023-10-02',
     registrationDate: '',
@@ -198,17 +214,17 @@ export const trademarks = [
     status: 'Opposed',
   },
 
-  // ── Nexaflow Asia Pacific Ltd. (6 marks) ──────────────────────────────────
+  // ── Yanolja Cloud Pte. Ltd. (6 marks) ────────────────────────────────────
   {
     id: 13,
-    applicant: 'Nexaflow Asia Pacific Ltd.',
-    markName: 'NEXAFLOW',
+    applicant: sub[1],
+    markName: 'YANOLJA CLOUD',
     registry: 'CNIPA',
     country: 'China',
     serialNo: 'CN2022/087654',
     regNo: '74532109',
     kindOfMark: 'Word',
-    ncl: '9',
+    ncl: '42',
     applicationDate: '2022-05-30',
     publicationDate: '2022-12-15',
     registrationDate: '2023-04-10',
@@ -217,8 +233,8 @@ export const trademarks = [
   },
   {
     id: 14,
-    applicant: 'Nexaflow Asia Pacific Ltd.',
-    markName: '耐克斯弗洛',
+    applicant: sub[1],
+    markName: '야놀자 클라우드',
     registry: 'CNIPA',
     country: 'China',
     serialNo: 'CN2022/091234',
@@ -233,8 +249,8 @@ export const trademarks = [
   },
   {
     id: 15,
-    applicant: 'Nexaflow Asia Pacific Ltd.',
-    markName: 'NEXAFLOW',
+    applicant: sub[1],
+    markName: 'YANOLJA CLOUD',
     registry: 'JPO',
     country: 'Japan',
     serialNo: 'JP2022/145678',
@@ -249,8 +265,8 @@ export const trademarks = [
   },
   {
     id: 16,
-    applicant: 'Nexaflow Asia Pacific Ltd.',
-    markName: 'NEXAFLOW',
+    applicant: sub[1],
+    markName: 'YANOLJA CLOUD',
     registry: 'IP Australia',
     country: 'Australia',
     serialNo: 'AU2022/1987654',
@@ -265,8 +281,8 @@ export const trademarks = [
   },
   {
     id: 17,
-    applicant: 'Nexaflow Asia Pacific Ltd.',
-    markName: 'NEXAFLOW PRO',
+    applicant: sub[1],
+    markName: 'YCS PLATFORM',
     registry: 'CNIPA',
     country: 'China',
     serialNo: 'CN2023/112345',
@@ -281,14 +297,14 @@ export const trademarks = [
   },
   {
     id: 18,
-    applicant: 'Nexaflow Asia Pacific Ltd.',
-    markName: 'FLOWSENSE',
+    applicant: sub[1],
+    markName: 'YANOLJA PMS',
     registry: 'JPO',
     country: 'Japan',
     serialNo: 'JP2021/089012',
     regNo: '6234567',
     kindOfMark: 'Word',
-    ncl: '9',
+    ncl: '42',
     applicationDate: '2021-09-15',
     publicationDate: '2022-03-08',
     registrationDate: '2022-08-22',
@@ -296,11 +312,11 @@ export const trademarks = [
     status: 'Expiring Soon',
   },
 
-  // ── CloudSoft Corp. (7 marks) ─────────────────────────────────────────────
+  // ── Innsoft, Inc. (7 marks) ───────────────────────────────────────────────
   {
     id: 19,
-    applicant: 'CloudSoft Corp.',
-    markName: 'CLOUDSOFT',
+    applicant: sub[8],
+    markName: 'INNSOFT',
     registry: 'USPTO',
     country: 'United States',
     serialNo: '97/001234',
@@ -315,8 +331,8 @@ export const trademarks = [
   },
   {
     id: 20,
-    applicant: 'CloudSoft Corp.',
-    markName: 'CLOUDSOFT',
+    applicant: sub[8],
+    markName: 'INNSOFT',
     registry: 'EUIPO',
     country: 'European Union',
     serialNo: '018112233',
@@ -331,8 +347,8 @@ export const trademarks = [
   },
   {
     id: 21,
-    applicant: 'CloudSoft Corp.',
-    markName: 'CS CLOUDSOFT & Design',
+    applicant: sub[8],
+    markName: 'INNSOFT & Design',
     registry: 'USPTO',
     country: 'United States',
     serialNo: '97/234567',
@@ -347,8 +363,8 @@ export const trademarks = [
   },
   {
     id: 22,
-    applicant: 'CloudSoft Corp.',
-    markName: 'SOFTSTREAM',
+    applicant: sub[8],
+    markName: 'CHECKINN',
     registry: 'USPTO',
     country: 'United States',
     serialNo: '96/987654',
@@ -363,8 +379,8 @@ export const trademarks = [
   },
   {
     id: 23,
-    applicant: 'CloudSoft Corp.',
-    markName: 'HYPERSCALE',
+    applicant: sub[8],
+    markName: 'INNDESK',
     registry: 'USPTO',
     country: 'United States',
     serialNo: '98/445566',
@@ -379,8 +395,8 @@ export const trademarks = [
   },
   {
     id: 24,
-    applicant: 'CloudSoft Corp.',
-    markName: 'CLOUDSOFT ENTERPRISE',
+    applicant: sub[8],
+    markName: 'INNSOFT ENTERPRISE',
     registry: 'EUIPO',
     country: 'European Union',
     serialNo: '019223344',
@@ -395,8 +411,8 @@ export const trademarks = [
   },
   {
     id: 25,
-    applicant: 'CloudSoft Corp.',
-    markName: 'CLOUDSOFT',
+    applicant: sub[8],
+    markName: 'INNSOFT',
     registry: 'CNIPA',
     country: 'China',
     serialNo: 'CN2021/234567',
