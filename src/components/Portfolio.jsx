@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react'
-import { Search, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, X } from 'lucide-react'
+import React, { useState, useMemo, useCallback } from 'react'
+import { Search, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, X, Globe, Loader2 } from 'lucide-react'
 import { differenceInDays, parseISO, format, isValid } from 'date-fns'
 
 const STATUS_STYLES = {
@@ -14,7 +14,7 @@ const COLUMNS = [
   { key: 'applicant',        label: 'Applicant',     w: '160px' },
   { key: 'markName',         label: 'Mark Name',     w: '160px' },
   { key: 'registry',         label: 'Registry',      w: '95px'  },
-  { key: 'country',          label: 'Country',       w: '140px' },
+  { key: 'country',          label: 'Country',       w: '160px' },
   { key: 'serialNo',         label: 'Serial No.',    w: '130px' },
   { key: 'regNo',            label: 'Reg. No.',      w: '120px' },
   { key: 'kindOfMark',       label: 'Kind',          w: '95px'  },
@@ -56,22 +56,141 @@ function ExpiryCell({ dateStr }) {
   )
 }
 
-export default function Portfolio({ data }) {
-  const [search,   setSearch]   = useState('')
-  const [status,   setStatus]   = useState('All')
-  const [registry, setRegistry] = useState('All')
-  const [country,  setCountry]  = useState('All')
-  const [sortKey,  setSortKey]  = useState('markName')
-  const [sortDir,  setSortDir]  = useState('asc')
-  const [page,     setPage]     = useState(1)
+/** Tooltip showing the list of designated countries for WIPO Madrid marks. */
+function DesignatedCountriesTooltip({ countries }) {
+  const [open, setOpen] = useState(false)
+  if (!countries || countries.length === 0) return null
+  return (
+    <span className="relative inline-flex items-center ml-1.5">
+      <button
+        onMouseEnter={() => setOpen(true)}
+        onMouseLeave={() => setOpen(false)}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setOpen(false)}
+        className="text-accent-blue hover:text-accent-blue-bright transition-colors"
+        aria-label={`${countries.length} designated countries`}
+      >
+        <Globe className="w-3.5 h-3.5" />
+      </button>
+      {open && (
+        <div className="absolute left-5 top-0 z-50 w-56 p-3 rounded-lg bg-navy-700 border border-navy-400 shadow-xl text-xs text-slate-300 leading-relaxed">
+          <p className="font-semibold text-white mb-1.5 text-[11px] uppercase tracking-wider">
+            Designated countries ({countries.length})
+          </p>
+          <p className="font-mono">{countries.join(', ')}</p>
+        </div>
+      )}
+    </span>
+  )
+}
 
-  const statuses   = ['All', ...new Set(data.map(t => t.status))]
-  const registries = ['All', ...new Set(data.map(t => t.registry))]
-  const countries  = ['All', ...new Set(data.map(t => t.country))]
+/** WIPO Madrid search bar shown at the top of the Portfolio tab. */
+function WipoSearchBar({ onResults, onLoading, onError }) {
+  const [input,      setInput]      = useState('')
+  const [loading,    setLoading]    = useState(false)
+  const [lastQuery,  setLastQuery]  = useState('')
+  const [resultInfo, setResultInfo] = useState(null)  // { count, query }
+
+  async function handleSearch(e) {
+    e.preventDefault()
+    const q = input.trim()
+    if (!q || q === lastQuery) return
+
+    setLoading(true)
+    onLoading(true)
+    onError(null)
+
+    try {
+      const res  = await fetch(`/api/wipo-search?holder=${encodeURIComponent(q)}`)
+      const json = await res.json()
+
+      if (!res.ok) {
+        throw new Error(json.error || `HTTP ${res.status}`)
+      }
+
+      setLastQuery(q)
+      setResultInfo({ count: json.count, query: q })
+      onResults(json.results ?? [])
+    } catch (err) {
+      onError(`WIPO search failed: ${err.message}`)
+      onResults([])
+    } finally {
+      setLoading(false)
+      onLoading(false)
+    }
+  }
+
+  function handleClear() {
+    setInput('')
+    setLastQuery('')
+    setResultInfo(null)
+    onResults([])
+    onError(null)
+  }
+
+  return (
+    <div className="flex items-center gap-3 p-3 rounded-xl bg-navy-800 border border-navy-500">
+      <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider whitespace-nowrap">
+        WIPO Madrid Live Search
+      </span>
+      <form onSubmit={handleSearch} className="flex items-center gap-2 flex-1">
+        <div className="relative flex-1 min-w-0">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+          <input
+            type="text"
+            placeholder="Holder name (e.g. Samsung)"
+            value={input}
+            onChange={e => setInput(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 bg-navy-700 border border-navy-500 rounded-lg text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-accent-blue/50 transition-colors"
+          />
+        </div>
+        <button
+          type="submit"
+          disabled={loading || !input.trim()}
+          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-accent-blue/10 border border-accent-blue/30 text-accent-blue text-sm font-medium hover:bg-accent-blue/20 disabled:opacity-40 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
+        >
+          {loading
+            ? <><Loader2 className="w-4 h-4 animate-spin" /> Searching…</>
+            : 'Search WIPO'
+          }
+        </button>
+        {resultInfo && (
+          <button
+            type="button"
+            onClick={handleClear}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-navy-500 text-slate-400 text-xs hover:text-slate-200 transition-colors whitespace-nowrap"
+          >
+            <X className="w-3.5 h-3.5" />
+            Clear ({resultInfo.count} found)
+          </button>
+        )}
+      </form>
+    </div>
+  )
+}
+
+export default function Portfolio({ data }) {
+  const [search,       setSearch]       = useState('')
+  const [status,       setStatus]       = useState('All')
+  const [registry,     setRegistry]     = useState('All')
+  const [country,      setCountry]      = useState('All')
+  const [sortKey,      setSortKey]      = useState('markName')
+  const [sortDir,      setSortDir]      = useState('asc')
+  const [page,         setPage]         = useState(1)
+  const [wipoResults,  setWipoResults]  = useState([])
+  const [wipoLoading,  setWipoLoading]  = useState(false)
+  const [wipoError,    setWipoError]    = useState(null)
+
+  // Merge static data with live WIPO results; WIPO rows append at the end
+  const combined = useMemo(() => [...data, ...wipoResults], [data, wipoResults])
+
+  const statuses   = ['All', ...new Set(combined.map(t => t.status))]
+  const registries = ['All', ...new Set(combined.map(t => t.registry))]
+  const countries  = ['All', ...new Set(combined.map(t => t.country))]
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase()
-    return data
+    return combined
       .filter(t => {
         if (q && !`${t.markName} ${t.applicant} ${t.serialNo} ${t.regNo}`.toLowerCase().includes(q)) return false
         if (status   !== 'All' && t.status   !== status)   return false
@@ -84,7 +203,7 @@ export default function Portfolio({ data }) {
         const vb = (b[sortKey] || '').toString()
         return sortDir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va)
       })
-  }, [data, search, status, registry, country, sortKey, sortDir])
+  }, [combined, search, status, registry, country, sortKey, sortDir])
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const rows = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
@@ -99,13 +218,18 @@ export default function Portfolio({ data }) {
     setSearch(''); setStatus('All'); setRegistry('All'); setCountry('All'); setPage(1)
   }
 
+  const handleWipoResults = useCallback(results => {
+    setWipoResults(results)
+    setPage(1)
+  }, [])
+
   const summary = {
-    total:    data.length,
-    active:   data.filter(t => t.status === 'Active').length,
-    pending:  data.filter(t => t.status === 'Pending').length,
-    expiring: data.filter(t => t.status === 'Expiring Soon').length,
-    opposed:  data.filter(t => t.status === 'Opposed').length,
-    expired:  data.filter(t => t.status === 'Expired').length,
+    total:    combined.length,
+    active:   combined.filter(t => t.status === 'Active').length,
+    pending:  combined.filter(t => t.status === 'Pending').length,
+    expiring: combined.filter(t => t.status === 'Expiring Soon').length,
+    opposed:  combined.filter(t => t.status === 'Opposed').length,
+    expired:  combined.filter(t => t.status === 'Expired').length,
   }
 
   const summaryCards = [
@@ -119,6 +243,21 @@ export default function Portfolio({ data }) {
 
   return (
     <div className="space-y-5">
+
+      {/* WIPO live search bar */}
+      <WipoSearchBar
+        onResults={handleWipoResults}
+        onLoading={setWipoLoading}
+        onError={setWipoError}
+      />
+
+      {/* WIPO error banner */}
+      {wipoError && (
+        <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-red-500/10 border border-red-500/25 text-red-400 text-sm">
+          <X className="w-4 h-4 flex-shrink-0" />
+          {wipoError}
+        </div>
+      )}
 
       {/* Summary cards */}
       <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
@@ -171,11 +310,25 @@ export default function Portfolio({ data }) {
 
         <span className="text-sm text-slate-400 ml-auto">
           {filtered.length} result{filtered.length !== 1 ? 's' : ''}
+          {wipoResults.length > 0 && (
+            <span className="ml-2 text-accent-blue text-xs">
+              +{wipoResults.length} from WIPO
+            </span>
+          )}
         </span>
       </div>
 
       {/* Table */}
       <div className="bg-navy-800 border border-navy-500 rounded-xl overflow-hidden">
+
+        {/* Loading overlay */}
+        {wipoLoading && (
+          <div className="flex items-center justify-center gap-3 py-5 border-b border-navy-500 bg-accent-blue/5">
+            <Loader2 className="w-5 h-5 text-accent-blue animate-spin" />
+            <span className="text-sm text-accent-blue">Fetching live data from WIPO Madrid Monitor…</span>
+          </div>
+        )}
+
         <div className="overflow-x-auto">
           <table className="w-full text-sm data-table">
             <thead>
@@ -209,11 +362,20 @@ export default function Portfolio({ data }) {
                   <td className="px-4 py-3 text-slate-300 whitespace-nowrap">{tm.applicant}</td>
                   <td className="px-4 py-3 font-semibold text-white whitespace-nowrap">{tm.markName}</td>
                   <td className="px-4 py-3">
-                    <span className="px-2 py-0.5 rounded text-xs font-mono font-medium bg-accent-blue/10 text-accent-blue border border-accent-blue/20">
+                    <span className={`px-2 py-0.5 rounded text-xs font-mono font-medium border ${
+                      tm.registry === 'WIPO Madrid'
+                        ? 'bg-purple-500/10 text-purple-400 border-purple-500/20'
+                        : 'bg-accent-blue/10 text-accent-blue border-accent-blue/20'
+                    }`}>
                       {tm.registry}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-slate-300 whitespace-nowrap">{tm.country}</td>
+                  <td className="px-4 py-3 text-slate-300 whitespace-nowrap">
+                    {tm.country}
+                    {tm.registry === 'WIPO Madrid' && (
+                      <DesignatedCountriesTooltip countries={tm.designatedCountries} />
+                    )}
+                  </td>
                   <td className="px-4 py-3 font-mono text-xs text-slate-400 whitespace-nowrap">{tm.serialNo || '—'}</td>
                   <td className="px-4 py-3 font-mono text-xs text-slate-400 whitespace-nowrap">{tm.regNo || '—'}</td>
                   <td className="px-4 py-3 text-slate-300 whitespace-nowrap">{tm.kindOfMark}</td>
@@ -229,7 +391,7 @@ export default function Portfolio({ data }) {
                   </td>
                 </tr>
               ))}
-              {rows.length === 0 && (
+              {rows.length === 0 && !wipoLoading && (
                 <tr>
                   <td colSpan={COLUMNS.length} className="px-4 py-16 text-center text-slate-500">
                     No records match your filters.{' '}
@@ -255,7 +417,14 @@ export default function Portfolio({ data }) {
               >
                 <ChevronLeft className="w-4 h-4" />
               </button>
-              {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
+              {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
+                // Show at most 7 page buttons centred around current page
+                const half  = 3
+                let start   = Math.max(1, page - half)
+                const end   = Math.min(totalPages, start + 6)
+                start       = Math.max(1, end - 6)
+                return start + i
+              }).map(p => (
                 <button
                   key={p}
                   onClick={() => setPage(p)}
