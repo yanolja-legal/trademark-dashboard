@@ -554,11 +554,12 @@ export default function Portfolio({ data, registryStatus = {}, progress, lastUpd
             </>
           ) : lastUpdated ? (
             <p className="text-xs text-slate-500">
-              Last updated {format(lastUpdated, 'dd MMM yyyy HH:mm')} UTC
-              {liveCount > 0 && <span className="ml-2 text-accent-blue">· {liveCount} live results</span>}
+              Data as of {format(lastUpdated, 'dd MMM yyyy HH:mm')} UTC
             </p>
           ) : (
-            <p className="text-xs text-slate-500">Awaiting data…</p>
+            <p className="text-xs text-slate-400">
+              Click <span className="text-accent-blue font-medium">Refresh All Registries</span> to fetch trademark data for all entities
+            </p>
           )}
         </div>
         <button
@@ -797,7 +798,18 @@ export default function Portfolio({ data, registryStatus = {}, progress, lastUpd
                 </tr>
               ))}
 
-              {rows.length === 0 && !isRefreshing && (
+              {rows.length === 0 && !isRefreshing && data.length === 0 && (
+                <tr>
+                  <td colSpan={COLUMNS.length} className="px-4 py-20 text-center">
+                    <p className="text-slate-400 text-sm mb-1">No trademark data loaded yet.</p>
+                    <p className="text-slate-500 text-xs">
+                      Click <span className="text-accent-blue font-medium">Refresh All Registries</span> to fetch trademark data for all entities
+                    </p>
+                  </td>
+                </tr>
+              )}
+
+              {rows.length === 0 && !isRefreshing && data.length > 0 && (
                 <tr>
                   <td colSpan={COLUMNS.length} className="px-4 py-16 text-center text-slate-500">
                     No records match your filters.{' '}

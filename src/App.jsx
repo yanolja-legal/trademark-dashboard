@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react'
+import React, { useState, useMemo, useRef, useCallback } from 'react'
 import { Shield, Bell, BarChart2, Settings, Database, RefreshCw, Building2 } from 'lucide-react'
 import { differenceInDays, parseISO, format, isValid } from 'date-fns'
 import Portfolio  from './components/Portfolio'
@@ -24,6 +24,10 @@ const INITIAL_STATUS = Object.fromEntries(
   REGISTRIES.map(r => [r.id, { status: 'idle', count: 0, error: null, lastFetched: null }])
 )
 
+const CACHE_RESULTS   = 'tm-cache-results'
+const CACHE_TIMESTAMP = 'tm-cache-timestamp'
+const CACHE_REGISTRY  = 'tm-cache-registry-status'
+
 // ── helpers ────────────────────────────────────────────────────────────────────
 
 /** Returns true if a trademark record has any flag that requires attention. */
@@ -41,14 +45,35 @@ function hasFlag(t) {
   return false
 }
 
+/** fetch() wrapped with a 15-second AbortController timeout. */
+async function fetchWithTimeout(url, ms = 15000) {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), ms)
+  try {
+    const res = await fetch(url, { signal: controller.signal })
+    clearTimeout(timer)
+    return res
+  } catch (err) {
+    clearTimeout(timer)
+    if (err.name === 'AbortError') throw new Error('Timed out after 15s — marked unavailable')
+    throw err
+  }
+}
+
 // ── App ────────────────────────────────────────────────────────────────────────
 
 export default function App() {
   const [activeTab,      setActiveTab]      = useState('portfolio')
-  const [liveResults,    setLiveResults]    = useState([])
+  const [liveResults,    setLiveResults]    = useState(() => {
+    try { const c = localStorage.getItem(CACHE_RESULTS);   return c ? JSON.parse(c) : [] } catch { return [] }
+  })
   const [csvResults,     setCsvResults]     = useState([]) // IP India + ILPO uploaded CSVs
-  const [registryStatus, setRegistryStatus] = useState(INITIAL_STATUS)
-  const [lastUpdated,    setLastUpdated]    = useState(null)
+  const [registryStatus, setRegistryStatus] = useState(() => {
+    try { const c = localStorage.getItem(CACHE_REGISTRY);  return c ? JSON.parse(c) : INITIAL_STATUS } catch { return INITIAL_STATUS }
+  })
+  const [lastUpdated,    setLastUpdated]    = useState(() => {
+    try { const ts = localStorage.getItem(CACHE_TIMESTAMP); return ts ? new Date(ts) : null } catch { return null }
+  })
   const [progress,       setProgress]       = useState(null) // { current, total, msg } | null
   const fetchCountRef  = useRef(0)
   const isFetchingRef  = useRef(false)
@@ -86,28 +111,25 @@ export default function App() {
     }))
   }, [])
 
-  // ── Auto-fetch all auto-fetch registries ──────────────────────────────────
+  // ── Fetch all registries sequentially (one entity at a time) ─────────────────
 
   const fetchAll = useCallback(async () => {
     if (isFetchingRef.current) return
     isFetchingRef.current = true
 
-    const activeSubs  = SUBSIDIARIES.filter(s => s.active)
-    const fetchRegs   = REGISTRIES.filter(r => r.fetchStrategy === 'numbers' || r.fetchStrategy === 'holder')
-    const csvRegs     = REGISTRIES.filter(r => r.fetchStrategy === 'csv')
-    const noneRegs    = REGISTRIES.filter(r => r.fetchStrategy === 'none')
+    const activeSubs = SUBSIDIARIES.filter(s => s.active)
+    const fetchRegs  = REGISTRIES.filter(r => r.fetchStrategy === 'numbers' || r.fetchStrategy === 'holder')
+    const csvRegs    = REGISTRIES.filter(r => r.fetchStrategy === 'csv')
+    const noneRegs   = REGISTRIES.filter(r => r.fetchStrategy === 'none')
 
-    // For 'numbers' registries, count one request per registry (not per sub)
-    // For 'holder' registries, count one request per subsidiary
-    const total = fetchRegs.reduce((acc, reg) => {
-      return acc + (reg.fetchStrategy === 'holder' ? activeSubs.length : 1)
-    }, 0)
+    // 1 step per numbers-registry; 1 step per (holder-registry × subsidiary)
+    const total = fetchRegs.reduce((acc, reg) =>
+      acc + (reg.fetchStrategy === 'holder' ? activeSubs.length : 1), 0)
 
     fetchCountRef.current = 0
     setLiveResults([])
     setProgress({ current: 0, total: Math.max(total, 1), msg: 'Starting fetch…' })
 
-    // Mark CSV registries as 'csv' and none registries as 'pending'
     setRegistryStatus(prev => {
       const next = { ...prev }
       fetchRegs.forEach(r => {
@@ -122,119 +144,170 @@ export default function App() {
       return next
     })
 
-    await Promise.allSettled(
-      fetchRegs.map(async reg => {
-        const regResults = []
-        let hasPending   = false
-        let lastError    = null
+    const allNewResults  = []
+    const statusUpdates  = {}
 
-        if (reg.fetchStrategy === 'numbers') {
-          // Collect all known numbers across all subsidiaries for this registry
-          const allNumbers = []
-          activeSubs.forEach(sub => {
-            const marks = KNOWN_MARKS[sub.name]
-            if (marks) {
-              const nums = marks[reg.knownMarksKey] ?? []
-              nums.forEach(n => allNumbers.push(String(n)))
-            }
+    for (const reg of fetchRegs) {
+      const regResults = []
+      let hasPending   = false
+      let lastError    = null
+
+      if (reg.fetchStrategy === 'numbers') {
+        const allNumbers = []
+        activeSubs.forEach(sub => {
+          const marks = KNOWN_MARKS[sub.name]
+          if (marks) ;(marks[reg.knownMarksKey] ?? []).forEach(n => allNumbers.push(String(n)))
+        })
+
+        if (allNumbers.length === 0) {
+          fetchCountRef.current++
+          const st = { status: 'no-marks', count: 0, error: `No ${reg.label} numbers configured in knownMarks.js`, lastFetched: null }
+          statusUpdates[reg.id] = st
+          setRegistryStatus(prev => ({ ...prev, [reg.id]: st }))
+          setProgress({ current: fetchCountRef.current, total: Math.max(total, 1), msg: `${reg.label}: no numbers configured` })
+          continue
+        }
+
+        const stepN = fetchCountRef.current + 1
+        setProgress({ current: fetchCountRef.current, total: Math.max(total, 1), msg: `Fetching ${reg.label}… (${stepN} of ${total})` })
+
+        try {
+          const url  = `${reg.apiPath}?${reg.queryParam}=${encodeURIComponent(allNumbers.join(','))}`
+          const res  = await fetchWithTimeout(url)
+          const json = await res.json()
+          if (json.status === 'pending') hasPending = true
+          else if (!res.ok) lastError = json.error || `HTTP ${res.status}`
+          else ;(json.results ?? []).forEach(r => regResults.push(r))
+        } catch (err) {
+          lastError = err.message
+        }
+
+        fetchCountRef.current++
+        setProgress({ current: fetchCountRef.current, total: Math.max(total, 1), msg: `${reg.label}: ${regResults.length} marks fetched` })
+
+      } else if (reg.fetchStrategy === 'holder') {
+        for (const sub of activeSubs) {
+          const stepN = fetchCountRef.current + 1
+          setProgress({
+            current: fetchCountRef.current,
+            total:   Math.max(total, 1),
+            msg:     `Fetching ${sub.shortName} from ${reg.label}… (${stepN} of ${total})`,
           })
 
-          if (allNumbers.length === 0) {
-            // No numbers configured — surface a friendly status
-            setRegistryStatus(prev => ({
-              ...prev,
-              [reg.id]: {
-                status:      'no-marks',
-                count:       0,
-                error:       `No ${reg.label} numbers configured in knownMarks.js`,
-                lastFetched: null,
-              },
-            }))
-            const n = ++fetchCountRef.current
-            setProgress({ current: n, total: Math.max(total, 1), msg: `${reg.label}: no numbers configured` })
-            return
-          }
-
           try {
-            const url  = `${reg.apiPath}?${reg.queryParam}=${encodeURIComponent(allNumbers.join(','))}`
-            setProgress({ current: fetchCountRef.current, total: Math.max(total, 1), msg: `Fetching ${reg.label}…` })
-            const res  = await fetch(url)
+            const url  = `${reg.apiPath}?${reg.queryParam}=${encodeURIComponent(sub.name)}`
+            const res  = await fetchWithTimeout(url)
             const json = await res.json()
-
-            if (json.status === 'pending') {
-              hasPending = true
-            } else if (!res.ok) {
-              lastError = json.error || `HTTP ${res.status}`
-            } else {
-              ;(json.results ?? []).forEach(r => regResults.push(r))
-            }
+            if (json.status === 'pending') hasPending = true
+            else if (!res.ok) lastError = json.error || `HTTP ${res.status}`
+            else ;(json.results ?? []).forEach(r => regResults.push(r))
           } catch (err) {
             lastError = err.message
           }
 
-          const n = ++fetchCountRef.current
-          setProgress({ current: n, total: Math.max(total, 1), msg: `${reg.label} done (${regResults.length} marks)` })
-
-        } else if (reg.fetchStrategy === 'holder') {
-          // Per-subsidiary holder search (e.g. EUIPO)
-          await Promise.allSettled(
-            activeSubs.map(async sub => {
-              try {
-                const url  = `${reg.apiPath}?${reg.queryParam}=${encodeURIComponent(sub.name)}`
-                const res  = await fetch(url)
-                const json = await res.json()
-
-                if (json.status === 'pending') {
-                  hasPending = true
-                } else if (!res.ok) {
-                  lastError = json.error || `HTTP ${res.status}`
-                } else {
-                  ;(json.results ?? []).forEach(r => regResults.push(r))
-                }
-              } catch (err) {
-                lastError = err.message
-              } finally {
-                const n = ++fetchCountRef.current
-                setProgress({
-                  current: n,
-                  total:   Math.max(total, 1),
-                  msg:     `Fetching ${sub.shortName} from ${reg.label}… (${n} of ${total})`,
-                })
-              }
-            })
-          )
+          fetchCountRef.current++
         }
+        setProgress({ current: fetchCountRef.current, total: Math.max(total, 1), msg: `${reg.label}: ${regResults.length} marks fetched` })
+      }
 
-        // Flush results into state
-        if (regResults.length > 0) {
-          setLiveResults(prev => {
-            const existingIds = new Set(prev.map(r => r.id))
-            return [...prev, ...regResults.filter(r => !existingIds.has(r.id))]
-          })
-        }
+      if (regResults.length > 0) {
+        allNewResults.push(...regResults)
+        setLiveResults(prev => {
+          const existingIds = new Set(prev.map(r => r.id))
+          return [...prev, ...regResults.filter(r => !existingIds.has(r.id))]
+        })
+      }
 
-        setRegistryStatus(prev => ({
-          ...prev,
-          [reg.id]: {
-            status:      hasPending                            ? 'pending'
-                       : lastError && regResults.length === 0 ? 'error'
-                       : 'ok',
-            count:       regResults.length,
-            error:       lastError,
-            lastFetched: hasPending
-              ? prev[reg.id]?.lastFetched
-              : new Date().toISOString(),
-          },
-        }))
-      })
-    )
+      const st = {
+        status:      hasPending                            ? 'pending'
+                   : lastError && regResults.length === 0 ? 'error'
+                   : 'ok',
+        count:       regResults.length,
+        error:       lastError,
+        lastFetched: hasPending ? null : new Date().toISOString(),
+      }
+      statusUpdates[reg.id] = st
+      setRegistryStatus(prev => ({ ...prev, [reg.id]: st }))
+    }
 
-    setLastUpdated(new Date())
+    const now = new Date()
+    setLastUpdated(now)
     setProgress(null)
     isFetchingRef.current = false
+
+    // Persist to localStorage so next page load shows cached data immediately
+    try {
+      localStorage.setItem(CACHE_RESULTS,   JSON.stringify(allNewResults))
+      localStorage.setItem(CACHE_TIMESTAMP, now.toISOString())
+      localStorage.setItem(CACHE_REGISTRY,  JSON.stringify({ ...INITIAL_STATUS, ...statusUpdates }))
+    } catch { /* ignore storage quota errors */ }
   }, [])
 
-  useEffect(() => { fetchAll() }, [fetchAll])
+  // ── Per-registry per-entity refresh ───────────────────────────────────────
+
+  const fetchRegistryForEntity = useCallback(async (regId, subId) => {
+    if (isFetchingRef.current) return
+    const reg = REGISTRIES.find(r => r.id === regId)
+    const sub = SUBSIDIARIES.find(s => s.id === subId)
+    if (!reg || !sub) return
+    if (reg.fetchStrategy !== 'numbers' && reg.fetchStrategy !== 'holder') return
+
+    setRegistryStatus(prev => ({
+      ...prev,
+      [reg.id]: { ...prev[reg.id], status: 'loading' },
+    }))
+
+    const results = []
+    let lastError = null
+
+    try {
+      if (reg.fetchStrategy === 'numbers') {
+        // numbers registries are not entity-scoped — re-fetch all known numbers
+        const activeSubs = SUBSIDIARIES.filter(s => s.active)
+        const allNumbers = []
+        activeSubs.forEach(s => {
+          const marks = KNOWN_MARKS[s.name]
+          if (marks) ;(marks[reg.knownMarksKey] ?? []).forEach(n => allNumbers.push(String(n)))
+        })
+        if (allNumbers.length > 0) {
+          const url = `${reg.apiPath}?${reg.queryParam}=${encodeURIComponent(allNumbers.join(','))}`
+          const res = await fetchWithTimeout(url)
+          const json = await res.json()
+          if (!res.ok) lastError = json.error || `HTTP ${res.status}`
+          else ;(json.results ?? []).forEach(r => results.push(r))
+        }
+        setLiveResults(prev => {
+          const filtered = prev.filter(r => r.registry !== reg.value)
+          const existingIds = new Set(filtered.map(r => r.id))
+          return [...filtered, ...results.filter(r => !existingIds.has(r.id))]
+        })
+      } else {
+        // holder: fetch just this one entity
+        const url = `${reg.apiPath}?${reg.queryParam}=${encodeURIComponent(sub.name)}`
+        const res = await fetchWithTimeout(url)
+        const json = await res.json()
+        if (!res.ok) lastError = json.error || `HTTP ${res.status}`
+        else ;(json.results ?? []).forEach(r => results.push(r))
+        setLiveResults(prev => {
+          const filtered = prev.filter(r => !(r.registry === reg.value && r.applicant === sub.name))
+          const existingIds = new Set(filtered.map(r => r.id))
+          return [...filtered, ...results.filter(r => !existingIds.has(r.id))]
+        })
+      }
+    } catch (err) {
+      lastError = err.message
+    }
+
+    setRegistryStatus(prev => ({
+      ...prev,
+      [reg.id]: {
+        ...prev[reg.id],
+        status:      lastError && results.length === 0 ? 'error' : 'ok',
+        error:       lastError,
+        lastFetched: new Date().toISOString(),
+      },
+    }))
+  }, [])
 
   // ── Derived stats ──────────────────────────────────────────────────────────
 
@@ -350,6 +423,8 @@ export default function App() {
             data={combined}
             registryStatus={registryStatus}
             lastUpdated={lastUpdated}
+            onRefreshRegistryForEntity={fetchRegistryForEntity}
+            isRefreshing={isRefreshing}
           />
         )}
         {activeTab === 'alerts'    && <Alerts    data={combined} />}

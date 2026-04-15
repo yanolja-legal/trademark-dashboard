@@ -1,5 +1,5 @@
 import React from 'react'
-import { Building2, AlertTriangle, Clock } from 'lucide-react'
+import { Building2, AlertTriangle, Clock, RefreshCw } from 'lucide-react'
 import { differenceInDays, parseISO, format, isValid } from 'date-fns'
 import { SUBSIDIARIES } from '../subsidiaries.js'
 import { REGISTRIES }   from '../registries.js'
@@ -34,7 +34,7 @@ const REGISTRY_COLORS = {
 
 // ── EntityCard ────────────────────────────────────────────────────────────────
 
-function EntityCard({ sub, marks, registryStatus, lastUpdated }) {
+function EntityCard({ sub, marks, registryStatus, lastUpdated, onRefreshRegistry, isRefreshing }) {
   const counts = {
     active:   marks.filter(m => m.status === 'Active').length,
     pending:  marks.filter(m => m.status === 'Pending').length,
@@ -45,15 +45,14 @@ function EntityCard({ sub, marks, registryStatus, lastUpdated }) {
   const flagCount      = marks.filter(hasFlag).length
   const isEmpty        = marks.length === 0
 
-  // Per-registry breakdown for this entity
-  // Use reg.value (exact API return string) for data matching; reg.label for display
+  // Per-registry breakdown — show all API-fetchable registries so refresh buttons are always visible
   const regBreakdown = REGISTRIES
+    .filter(reg => reg.fetchStrategy === 'numbers' || reg.fetchStrategy === 'holder')
     .map(reg => {
       const count  = marks.filter(m => m.registry === reg.value).length
       const status = registryStatus[reg.id]?.status ?? 'idle'
       return { reg, count, status }
     })
-    .filter(({ count, status }) => count > 0 || status === 'loading')
 
   const countries = [...new Set(marks.map(m => m.country))]
 
@@ -102,18 +101,28 @@ function EntityCard({ sub, marks, registryStatus, lastUpdated }) {
         ))}
       </div>
 
-      {/* Registry breakdown */}
+      {/* Registry breakdown with per-registry refresh */}
       {regBreakdown.length > 0 && (
         <div className="flex flex-wrap gap-1.5 mb-3">
           {regBreakdown.map(({ reg, count, status }) => {
-            const cls = REGISTRY_COLORS[reg.value] || REGISTRY_COLORS[reg.label] || 'text-accent-blue border-accent-blue/30 bg-accent-blue/8'
+            const cls        = REGISTRY_COLORS[reg.value] || REGISTRY_COLORS[reg.label] || 'text-accent-blue border-accent-blue/30 bg-accent-blue/8'
+            const isLoading  = status === 'loading'
+            const isDisabled = isLoading || isRefreshing
             return (
-              <span key={reg.id} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-mono border ${cls}`}>
+              <span key={reg.id} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-mono border ${cls} ${count === 0 && !isLoading ? 'opacity-40' : ''}`}>
                 {reg.label}
-                {status === 'loading'
+                {isLoading
                   ? <span className="text-[10px] opacity-60">…</span>
-                  : <span className="font-bold">{count}</span>
+                  : <span className="font-bold">{count || '0'}</span>
                 }
+                <button
+                  onClick={() => onRefreshRegistry?.(reg.id, sub.id)}
+                  disabled={isDisabled}
+                  title={`Refresh ${reg.label} for ${sub.shortName}`}
+                  className="ml-0.5 opacity-50 hover:opacity-100 disabled:opacity-20 disabled:cursor-not-allowed transition-opacity"
+                >
+                  <RefreshCw className={`w-2.5 h-2.5 ${isLoading ? 'animate-spin' : ''}`} />
+                </button>
               </span>
             )
           })}
@@ -141,7 +150,7 @@ function EntityCard({ sub, marks, registryStatus, lastUpdated }) {
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 
-export default function ByEntity({ data, registryStatus = {}, lastUpdated }) {
+export default function ByEntity({ data, registryStatus = {}, lastUpdated, onRefreshRegistryForEntity, isRefreshing = false }) {
   const entities = SUBSIDIARIES
     .filter(s => s.active)
     .map(sub => ({
@@ -254,6 +263,8 @@ export default function ByEntity({ data, registryStatus = {}, lastUpdated }) {
             marks={marks}
             registryStatus={registryStatus}
             lastUpdated={lastUpdated}
+            onRefreshRegistry={onRefreshRegistryForEntity}
+            isRefreshing={isRefreshing}
           />
         ))}
       </div>
