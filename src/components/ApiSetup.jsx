@@ -1,7 +1,8 @@
 import React, { useState } from 'react'
-import { Key, Globe, Bell, RefreshCw, Check, Eye, EyeOff, Zap, Wifi, Building2, Loader2, CheckCircle2, XCircle, Clock, AlertCircle } from 'lucide-react'
+import { Key, Globe, Bell, RefreshCw, Check, Eye, EyeOff, Zap, Wifi, Building2, Loader2, CheckCircle2, XCircle, Clock, AlertCircle, Hash } from 'lucide-react'
 import { SUBSIDIARIES } from '../subsidiaries.js'
 import { REGISTRIES }   from '../registries.js'
+import { KNOWN_MARKS }  from '../knownMarks.js'
 
 // ── Entity chips ─────────────────────────────────────────────────────────────
 // Renders the full subsidiary list as read-only chips.
@@ -179,6 +180,9 @@ export default function ApiSetup({ registryStatus = {} }) {
 
             let icon, iconCls, labelCls, statusLabel
 
+            const isCsv      = status === 'csv'
+            const isNoMarks  = status === 'no-marks'
+
             if (isLoading) {
               icon = <Loader2 className="w-4 h-4 animate-spin" />
               iconCls  = 'text-accent-blue'
@@ -188,8 +192,17 @@ export default function ApiSetup({ registryStatus = {} }) {
               icon = <CheckCircle2 className="w-4 h-4" />
               iconCls  = 'text-green-400'
               labelCls = 'text-green-400'
-              const isSandbox = rs.lastFetched && reg.id === 'euipo'
               statusLabel = `Connected${!reg.requiresKey ? ' (no key needed)' : ''} · ${rs.count} results`
+            } else if (isCsv) {
+              icon = <AlertCircle className="w-4 h-4" />
+              iconCls  = 'text-teal-400'
+              labelCls = 'text-teal-400'
+              statusLabel = rs.count > 0 ? `CSV loaded · ${rs.count} marks` : 'CSV upload required — see Portfolio tab'
+            } else if (isNoMarks) {
+              icon = <AlertCircle className="w-4 h-4" />
+              iconCls  = 'text-yellow-400'
+              labelCls = 'text-yellow-400'
+              statusLabel = 'No mark numbers configured — add them in knownMarks.js'
             } else if (isPending) {
               icon = <Clock className="w-4 h-4" />
               iconCls  = 'text-indigo-400'
@@ -340,6 +353,73 @@ export default function ApiSetup({ registryStatus = {} }) {
             <Toggle label="Weekly Digest"     description="Summary email every Monday 09:00 UTC"      defaultChecked />
           </div>
         </Section>
+      </div>
+
+      {/* ── Configure Mark Numbers ── */}
+      <div className="bg-navy-800 border border-navy-500 rounded-xl overflow-hidden">
+        <div className="px-5 py-4 border-b border-navy-500 flex items-center gap-3">
+          <div className="p-2 rounded-lg bg-accent-blue/10 border border-accent-blue/20">
+            <Hash className="w-4 h-4 text-accent-blue" />
+          </div>
+          <div>
+            <h3 className="font-semibold text-white text-sm">Configure Mark Numbers</h3>
+            <p className="text-xs text-slate-400 mt-0.5">
+              IR numbers (WIPO) and serial numbers (USPTO) stored in <code className="text-accent-blue font-mono">src/knownMarks.js</code>
+            </p>
+          </div>
+        </div>
+        <div className="p-5">
+          <div className="mb-4 flex items-start gap-3 px-4 py-3 rounded-lg bg-accent-blue/5 border border-accent-blue/20 text-sm text-slate-300">
+            <AlertCircle className="w-4 h-4 text-accent-blue flex-shrink-0 mt-0.5" />
+            <span>
+              To add mark numbers, ask Claude Code:{' '}
+              <span className="font-mono text-accent-blue">"Add WIPO IR number 1234567 for Yanolja Co., Ltd. in knownMarks.js"</span>.
+              Numbers are fetched automatically on the next dashboard refresh.
+            </span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-navy-600/40">
+                  <th className="px-4 py-2.5 text-left text-[11px] font-semibold text-slate-400 uppercase tracking-wider whitespace-nowrap">Subsidiary</th>
+                  {REGISTRIES.filter(r => r.fetchStrategy === 'numbers').map(reg => (
+                    <th key={reg.id} className="px-4 py-2.5 text-center text-[11px] font-semibold text-slate-400 uppercase tracking-wider whitespace-nowrap">
+                      {reg.label}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {SUBSIDIARIES.filter(s => s.active).map(sub => {
+                  const marks = KNOWN_MARKS[sub.name] ?? {}
+                  return (
+                    <tr key={sub.id} className="border-b border-navy-600/20 hover:bg-navy-700/20 transition-colors">
+                      <td className="px-4 py-3 font-medium text-slate-200 whitespace-nowrap">{sub.shortName}</td>
+                      {REGISTRIES.filter(r => r.fetchStrategy === 'numbers').map(reg => {
+                        const nums = marks[reg.knownMarksKey] ?? []
+                        return (
+                          <td key={reg.id} className="px-4 py-3 text-center">
+                            {nums.length > 0 ? (
+                              <div className="flex flex-wrap gap-1 justify-center">
+                                {nums.map(n => (
+                                  <span key={n} className="px-1.5 py-0.5 rounded font-mono bg-navy-600 border border-navy-500 text-slate-300">
+                                    {n}
+                                  </span>
+                                ))}
+                              </div>
+                            ) : (
+                              <span className="text-slate-600">—</span>
+                            )}
+                          </td>
+                        )
+                      })}
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
 
       {/* Sync settings */}

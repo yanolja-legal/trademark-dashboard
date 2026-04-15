@@ -1,11 +1,11 @@
 /**
  * /api/euipo-search
  *
- * Searches the EUIPO Open Data (COPLA) trademark API for marks by applicant/holder.
+ * Searches the EUIPO Trademark Search API for marks by applicant/holder.
  * Uses OAuth2 client credentials flow with in-memory token caching.
  *
  * Env vars:
- *   EUIPO_CLIENT_ID      — OAuth2 client ID
+ *   EUIPO_CLIENT_ID      — OAuth2 client ID (also sent as X-IBM-Client-Id header)
  *   EUIPO_CLIENT_SECRET  — OAuth2 client secret
  *   EUIPO_ENV            — 'sandbox' (default) | 'production'
  *
@@ -14,45 +14,71 @@
  *   ?trademarkNumbers=A,B,C     — bypass: fetch specific marks by application number
  *
  * Returns 200 { status: 'pending', message } when credentials are absent.
- * Returns 200 { count, results[] } on success.
+ * Returns 200 { count, results[], isSandbox } on success.
+ * Returns 4xx/5xx { error, detail, ... } with the raw upstream response body on failure.
  */
 
 export const config = { runtime: 'nodejs' }
 
-// ── constants ──────────────────────────────────────────────────────────────────
+// ── endpoint constants ─────────────────────────────────────────────────────────
 
-const PROD_API_BASE    = 'https://euipo.europa.eu/copla/trademark/data/v1'
-const SANDBOX_API_BASE = 'https://euipo.europa.eu/copla/trademark/data/v1'   // same host, sandbox uses test credentials
-const TOKEN_URL        = 'https://euipo.europa.eu/idm2/oauth/token'
-const PAGE_SIZE        = 50
-const MAX_PAGES        = 10     // hard cap to prevent runaway pagination
+const SANDBOX_TOKEN_URL = 'https://auth-sandbox.euipo.europa.eu/oidc/accessToken'
+const PROD_TOKEN_URL    = 'https://auth.euipo.europa.eu/oidc/accessToken'
+
+const SANDBOX_API_BASE  = 'https://api-sandbox.euipo.europa.eu/trademark-search/trademarks'
+const PROD_API_BASE     = 'https://api.euipo.europa.eu/trademark-search/trademarks'
+
+const PAGE_SIZE = 50
+const MAX_PAGES = 10
 
 // ── in-memory token cache (persists across warm Vercel invocations) ────────────
 
 let tokenCache = { token: null, expiresAt: 0 }
 
-async function getToken(clientId, clientSecret) {
-  const now = Date.now()
+async function getToken(clientId, clientSecret, isSandbox) {
+  const now      = Date.now()
   if (tokenCache.token && tokenCache.expiresAt > now + 60_000) {
     return tokenCache.token
   }
 
-  const res = await fetch(TOKEN_URL, {
-    method:  'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      grant_type:    'client_credentials',
-      client_id:     clientId,
-      client_secret: clientSecret,
-    }),
-  })
+  const tokenUrl = isSandbox ? SANDBOX_TOKEN_URL : PROD_TOKEN_URL
 
-  if (!res.ok) {
-    const text = await res.text().catch(() => '')
-    throw new Error(`OAuth2 token error (${res.status}): ${text.slice(0, 300)}`)
+  let res
+  try {
+    res = await fetch(tokenUrl, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type:    'client_credentials',
+        client_id:     clientId,
+        client_secret: clientSecret,
+        scope:         'uid',
+      }),
+    })
+  } catch (networkErr) {
+    throw new Error(`OAuth2 token network error: ${networkErr.message}`)
   }
 
-  const { access_token, expires_in = 28800 } = await res.json()
+  const rawBody = await res.text().catch(() => '(unreadable)')
+
+  if (!res.ok) {
+    throw new Error(
+      `OAuth2 token error (HTTP ${res.status}) from ${tokenUrl}: ${rawBody.slice(0, 500)}`
+    )
+  }
+
+  let parsed
+  try {
+    parsed = JSON.parse(rawBody)
+  } catch {
+    throw new Error(`OAuth2 token response was not JSON: ${rawBody.slice(0, 300)}`)
+  }
+
+  if (!parsed.access_token) {
+    throw new Error(`OAuth2 token response missing access_token: ${rawBody.slice(0, 300)}`)
+  }
+
+  const { access_token, expires_in = 28800 } = parsed
   tokenCache = { token: access_token, expiresAt: now + expires_in * 1_000 }
   return access_token
 }
@@ -61,26 +87,25 @@ async function getToken(clientId, clientSecret) {
 
 function mapStatus(raw) {
   const s = (raw || '').toLowerCase()
-  if (s.includes('registered') || s === 'active')   return 'Active'
-  if (s.includes('filed') || s.includes('pending')) return 'Pending'
-  if (s.includes('expir'))                           return 'Expired'
-  if (s.includes('oppos'))                           return 'Opposed'
-  if (s.includes('withdrawn') || s.includes('refuse') || s.includes('cancel')) return 'Expired'
+  if (s.includes('registered') || s === 'active')    return 'Active'
+  if (s.includes('filed') || s.includes('pending'))  return 'Pending'
+  if (s.includes('expir'))                            return 'Expired'
+  if (s.includes('oppos'))                            return 'Opposed'
+  if (s.includes('withdrawn') || s.includes('refus') || s.includes('cancel')) return 'Expired'
   return raw ? raw.charAt(0).toUpperCase() + raw.slice(1).toLowerCase() : 'Unknown'
 }
 
 function extractNcl(tm) {
-  // EUIPO API may return niceClasses as array of numbers or objects
   const raw = tm.niceClasses ?? tm.niceClassList ?? tm.goodsAndServicesNiceClasses ?? []
   if (!Array.isArray(raw)) return String(raw || '')
   return raw.map(c => (typeof c === 'object' ? c.classNumber ?? c.number ?? c : c)).join(', ')
 }
 
 function normalise(tm, isSandbox) {
-  // EUIPO returns slightly different shapes from different API versions — handle both
-  const appNo  = tm.applicationNumber || tm.applicationNum || tm.trademarkId || ''
-  const regNo  = tm.registrationNumber || tm.registrationNum || ''
-  const name   =
+  const appNo = tm.applicationNumber || tm.applicationNum || tm.trademarkId || ''
+  const regNo = tm.registrationNumber || tm.registrationNum || ''
+
+  const name =
     tm.wordMark ??
     tm.markText ??
     tm.trademarkName ??
@@ -88,10 +113,10 @@ function normalise(tm, isSandbox) {
     (tm.markKind === 'Figurative' ? '[Figurative mark]' : '—')
 
   const applicant =
-    (tm.applicants?.[0]?.name) ??
-    (tm.holders?.[0]?.name) ??
-    tm.applicantName ??
-    tm.holderName ??
+    tm.applicants?.[0]?.name ??
+    tm.holders?.[0]?.name    ??
+    tm.applicantName          ??
+    tm.holderName             ??
     '—'
 
   return {
@@ -113,38 +138,53 @@ function normalise(tm, isSandbox) {
   }
 }
 
-// ── API helpers ────────────────────────────────────────────────────────────────
+// ── API search helper ──────────────────────────────────────────────────────────
 
-async function euipoGet(path, token, isSandbox) {
+async function euipoSearch(params, clientId, token, isSandbox) {
   const base = isSandbox ? SANDBOX_API_BASE : PROD_API_BASE
-  const res  = await fetch(`${base}${path}`, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-      Accept:        'application/json',
-    },
-  })
-  if (!res.ok) {
-    const text = await res.text().catch(() => '')
-    throw new Error(`EUIPO API error (${res.status}): ${text.slice(0, 300)}`)
+  const url  = `${base}?${new URLSearchParams(params)}`
+
+  let res
+  try {
+    res = await fetch(url, {
+      headers: {
+        Authorization:    `Bearer ${token}`,
+        'X-IBM-Client-Id': clientId,
+        Accept:           'application/json',
+      },
+    })
+  } catch (networkErr) {
+    throw new Error(`EUIPO search network error: ${networkErr.message}`)
   }
-  return res.json()
+
+  const rawBody = await res.text().catch(() => '(unreadable)')
+
+  if (!res.ok) {
+    throw new Error(
+      `EUIPO search error (HTTP ${res.status}) from ${url}: ${rawBody.slice(0, 500)}`
+    )
+  }
+
+  try {
+    return JSON.parse(rawBody)
+  } catch {
+    throw new Error(`EUIPO search response was not JSON: ${rawBody.slice(0, 300)}`)
+  }
 }
 
 // ── search strategies ──────────────────────────────────────────────────────────
 
-async function searchByHolder(holder, token, isSandbox) {
+async function searchByHolder(holder, clientId, token, isSandbox) {
   const results = []
   let start     = 0
 
   for (let page = 0; page < MAX_PAGES; page++) {
-    const qs   = new URLSearchParams({
-      'applicant.name': holder,
-      start:            String(start),
-      rows:             String(PAGE_SIZE),
-    })
-    const data = await euipoGet(`/trademarks?${qs}`, token, isSandbox)
+    const data = await euipoSearch(
+      { q: holder, start: String(start), rows: String(PAGE_SIZE) },
+      clientId, token, isSandbox
+    )
 
-    const hits  = data.trademarks ?? data.results ?? data.data ?? []
+    const hits = data.trademarks ?? data.results ?? data.data ?? []
     hits.forEach(tm => results.push(normalise(tm, isSandbox)))
 
     const total = data.totalResults ?? data.total ?? data.count ?? hits.length
@@ -155,15 +195,16 @@ async function searchByHolder(holder, token, isSandbox) {
   return results
 }
 
-async function fetchByNumbers(numbers, token, isSandbox) {
+async function fetchByNumbers(numbers, clientId, token, isSandbox) {
   const results = []
   for (const num of numbers) {
     try {
-      const data = await euipoGet(`/trademarks/${encodeURIComponent(num.trim())}`, token, isSandbox)
-      const tm   = data.trademark ?? data.result ?? data
-      if (tm && (tm.applicationNumber || tm.trademarkId)) {
-        results.push(normalise(tm, isSandbox))
-      }
+      const data = await euipoSearch(
+        { applicationNumber: num.trim() },
+        clientId, token, isSandbox
+      )
+      const hits = data.trademarks ?? data.results ?? data.data ?? []
+      hits.forEach(tm => results.push(normalise(tm, isSandbox)))
     } catch {
       // individual lookup failure — skip and continue
     }
@@ -178,26 +219,36 @@ export default async function handler(req, res) {
   const clientSecret = process.env.EUIPO_CLIENT_SECRET ?? ''
   const isSandbox    = (process.env.EUIPO_ENV ?? 'sandbox') !== 'production'
 
+  // Surface env-var state for easier debugging
+  const envDebug = {
+    EUIPO_CLIENT_ID:     clientId     ? `set (${clientId.slice(0, 4)}…)`     : 'NOT SET',
+    EUIPO_CLIENT_SECRET: clientSecret ? `set (${clientSecret.slice(0, 4)}…)` : 'NOT SET',
+    EUIPO_ENV:           process.env.EUIPO_ENV ?? '(unset — defaulting to sandbox)',
+    isSandbox,
+    tokenEndpoint: isSandbox ? SANDBOX_TOKEN_URL : PROD_TOKEN_URL,
+    searchEndpoint: isSandbox ? SANDBOX_API_BASE  : PROD_API_BASE,
+  }
+
   // No credentials → pending state (renders as blue info badge in dashboard)
   if (!clientId || !clientSecret) {
     return res.status(200).json({
       status:  'pending',
       message: 'EUIPO credentials not configured. Add EUIPO_CLIENT_ID and EUIPO_CLIENT_SECRET to environment variables.',
+      debug:   envDebug,
     })
   }
 
   const { holder, trademarkNumbers } = req.query
 
   try {
-    const token = await getToken(clientId, clientSecret)
+    const token = await getToken(clientId, clientSecret, isSandbox)
 
-    // Bypass mode: look up specific application numbers directly
     if (trademarkNumbers) {
       const numbers = trademarkNumbers.split(',').map(s => s.trim()).filter(Boolean)
       if (numbers.length === 0) {
         return res.status(400).json({ error: 'trademarkNumbers must be a comma-separated list' })
       }
-      const results = await fetchByNumbers(numbers, token, isSandbox)
+      const results = await fetchByNumbers(numbers, clientId, token, isSandbox)
       return res.status(200).json({ count: results.length, results, isSandbox })
     }
 
@@ -205,19 +256,23 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Missing required parameter: holder or trademarkNumbers' })
     }
 
-    const results = await searchByHolder(holder, token, isSandbox)
+    const results = await searchByHolder(holder, clientId, token, isSandbox)
     return res.status(200).json({ count: results.length, results, isSandbox })
 
   } catch (err) {
-    // Distinguish OAuth token errors from search errors
-    if (err.message.startsWith('OAuth2 token error')) {
-      tokenCache = { token: null, expiresAt: 0 }   // invalidate cache on auth failure
+    // Invalidate token cache on any auth failure so the next request retries
+    if (err.message.includes('OAuth2 token')) {
+      tokenCache = { token: null, expiresAt: 0 }
       return res.status(502).json({
-        error:      'EUIPO authentication failed',
-        detail:     err.message,
-        workaround: 'Verify EUIPO_CLIENT_ID and EUIPO_CLIENT_SECRET are correct.',
+        error:    'EUIPO authentication failed',
+        detail:   err.message,
+        debug:    envDebug,
+        workaround: 'Verify EUIPO_CLIENT_ID and EUIPO_CLIENT_SECRET are correct and the token endpoint is reachable.',
       })
     }
-    return res.status(500).json({ error: err.message })
+    return res.status(500).json({
+      error:  err.message,
+      debug:  envDebug,
+    })
   }
 }

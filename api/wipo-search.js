@@ -509,37 +509,34 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(204).end()
   if (req.method !== 'GET')     return res.status(405).json({ error: 'Method not allowed' })
 
-  const holder = (req.query.holder || '').trim()
-  if (!holder) {
-    return res.status(400).json({ error: 'Missing required query parameter: holder' })
-  }
+  // Primary: fetch by known IR numbers (?irNumbers= or legacy ?ids=)
+  const irNumbers = (req.query.irNumbers || req.query.ids || '')
+    .split(',').map(s => s.trim()).filter(Boolean)
 
-  // Optional: caller may supply known IR numbers to skip the search step.
-  // e.g. ?holder=Yanolja&ids=1234567,1234568
-  const knownIds = (req.query.ids || '')
-    .split(',')
-    .map(s => s.trim())
-    .filter(Boolean)
+  // Fallback: holder-name search (legacy — search API is not publicly accessible)
+  const holder = (req.query.holder || '').trim()
+
+  if (!irNumbers.length && !holder) {
+    return res.status(400).json({ error: 'Missing required parameter: irNumbers or holder' })
+  }
 
   try {
     let ids
 
-    if (knownIds.length > 0) {
-      ids = knownIds
+    if (irNumbers.length > 0) {
+      ids = irNumbers
     } else {
       try {
         ids = await searchAllIds(holder)
       } catch (searchErr) {
         if (searchErr.isSearchUnavailable) {
-          // The search API is not publicly accessible.  Return a structured
-          // error so the frontend can surface a clear message.
           return res.status(502).json({
             error    : 'WIPO Madrid Monitor search API is not publicly accessible.',
-            detail   : 'No documented REST search endpoint exists. Use the ?ids= parameter to look up known IR numbers directly.',
+            detail   : 'No documented REST search endpoint exists. Use the ?irNumbers= parameter to look up known IR numbers directly.',
             tried    : searchErr.tried,
             workaround:
-              'Pass comma-separated IR numbers via the `ids` query parameter, e.g. ' +
-              `?holder=${enc(holder)}&ids=1234567,1234568`,
+              'Pass comma-separated IR numbers via the `irNumbers` query parameter, e.g. ' +
+              `?irNumbers=1234567,1234568`,
           })
         }
         throw searchErr

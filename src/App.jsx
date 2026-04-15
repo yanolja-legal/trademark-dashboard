@@ -6,9 +6,9 @@ import ByEntity   from './components/ByEntity'
 import Alerts     from './components/Alerts'
 import Analytics  from './components/Analytics'
 import ApiSetup   from './components/ApiSetup'
-import { trademarks }   from './data/sampleData'
 import { SUBSIDIARIES } from './subsidiaries'
 import { REGISTRIES }   from './registries'
+import { KNOWN_MARKS }  from './knownMarks'
 
 // ── constants ──────────────────────────────────────────────────────────────────
 
@@ -47,6 +47,7 @@ function hasFlag(t) {
 export default function App() {
   const [activeTab,      setActiveTab]      = useState('portfolio')
   const [liveResults,    setLiveResults]    = useState([])
+  const [csvResults,     setCsvResults]     = useState([]) // IP India + ILPO uploaded CSVs
   const [registryStatus, setRegistryStatus] = useState(INITIAL_STATUS)
   const [lastUpdated,    setLastUpdated]    = useState(null)
   const [progress,       setProgress]       = useState(null) // { current, total, msg } | null
@@ -56,80 +57,156 @@ export default function App() {
   // ── Combined deduped data ──────────────────────────────────────────────────
 
   const combined = useMemo(() => {
-    const all  = [...trademarks, ...liveResults]
+    const all  = [...liveResults, ...csvResults]
     const seen = new Set()
     return all.filter(t => {
       if (seen.has(t.id)) return false
       seen.add(t.id)
       return true
     })
-  }, [liveResults])
+  }, [liveResults, csvResults])
 
-  // ── Auto-fetch all registries × all subsidiaries ───────────────────────────
+  // ── CSV upload handler (IP India / ILPO) ──────────────────────────────────
+
+  const handleCsvUpload = useCallback((registryId, rows) => {
+    setCsvResults(prev => {
+      const reg = REGISTRIES.find(r => r.id === registryId)
+      // Remove old rows for this registry, then append new ones
+      const filtered = prev.filter(r => r.registry !== reg?.value)
+      return [...filtered, ...rows]
+    })
+    setRegistryStatus(prev => ({
+      ...prev,
+      [registryId]: {
+        ...prev[registryId],
+        status:      'ok',
+        count:       rows.length,
+        error:       null,
+        lastFetched: new Date().toISOString(),
+      },
+    }))
+  }, [])
+
+  // ── Auto-fetch all auto-fetch registries ──────────────────────────────────
 
   const fetchAll = useCallback(async () => {
     if (isFetchingRef.current) return
     isFetchingRef.current = true
 
-    const activeSubs = SUBSIDIARIES.filter(s => s.active)
-    const apiRegs    = REGISTRIES.filter(r => r.apiPath)
-    const total      = activeSubs.length * apiRegs.length
+    const activeSubs  = SUBSIDIARIES.filter(s => s.active)
+    const fetchRegs   = REGISTRIES.filter(r => r.fetchStrategy === 'numbers' || r.fetchStrategy === 'holder')
+    const csvRegs     = REGISTRIES.filter(r => r.fetchStrategy === 'csv')
+    const noneRegs    = REGISTRIES.filter(r => r.fetchStrategy === 'none')
+
+    // For 'numbers' registries, count one request per registry (not per sub)
+    // For 'holder' registries, count one request per subsidiary
+    const total = fetchRegs.reduce((acc, reg) => {
+      return acc + (reg.fetchStrategy === 'holder' ? activeSubs.length : 1)
+    }, 0)
 
     fetchCountRef.current = 0
     setLiveResults([])
-    setProgress({ current: 0, total, msg: 'Starting search across all registries…' })
+    setProgress({ current: 0, total: Math.max(total, 1), msg: 'Starting fetch…' })
 
-    // Initialise registry statuses
+    // Mark CSV registries as 'csv' and none registries as 'pending'
     setRegistryStatus(prev => {
       const next = { ...prev }
-      REGISTRIES.forEach(r => {
-        next[r.id] = {
-          status:      r.apiPath ? 'loading' : 'pending',
-          count:       0,
-          error:       null,
-          lastFetched: prev[r.id]?.lastFetched ?? null,
-        }
+      fetchRegs.forEach(r => {
+        next[r.id] = { status: 'loading', count: 0, error: null, lastFetched: prev[r.id]?.lastFetched ?? null }
+      })
+      csvRegs.forEach(r => {
+        next[r.id] = { ...prev[r.id], status: prev[r.id]?.count > 0 ? 'ok' : 'csv' }
+      })
+      noneRegs.forEach(r => {
+        next[r.id] = { ...prev[r.id], status: 'pending' }
       })
       return next
     })
 
-    // Fetch all registries in parallel; within each registry all subsidiaries in parallel
     await Promise.allSettled(
-      apiRegs.map(async reg => {
+      fetchRegs.map(async reg => {
         const regResults = []
         let hasPending   = false
         let lastError    = null
 
-        await Promise.allSettled(
-          activeSubs.map(async sub => {
-            try {
-              const url  = `${reg.apiPath}?${reg.queryParam}=${encodeURIComponent(sub.name)}`
-              const res  = await fetch(url)
-              const json = await res.json()
-
-              if (json.status === 'pending') {
-                hasPending = true
-              } else if (!res.ok) {
-                lastError = json.workaround
-                  ? `${json.error} — ${json.workaround}`
-                  : (json.error || `HTTP ${res.status}`)
-              } else {
-                ;(json.results ?? []).forEach(r => regResults.push(r))
-              }
-            } catch (err) {
-              lastError = err.message
-            } finally {
-              const n = ++fetchCountRef.current
-              setProgress({
-                current: n,
-                total,
-                msg:     `Fetching ${sub.shortName} from ${reg.label}… (${n} of ${total})`,
-              })
+        if (reg.fetchStrategy === 'numbers') {
+          // Collect all known numbers across all subsidiaries for this registry
+          const allNumbers = []
+          activeSubs.forEach(sub => {
+            const marks = KNOWN_MARKS[sub.name]
+            if (marks) {
+              const nums = marks[reg.knownMarksKey] ?? []
+              nums.forEach(n => allNumbers.push(String(n)))
             }
           })
-        )
 
-        // Flush registry results into combined state
+          if (allNumbers.length === 0) {
+            // No numbers configured — surface a friendly status
+            setRegistryStatus(prev => ({
+              ...prev,
+              [reg.id]: {
+                status:      'no-marks',
+                count:       0,
+                error:       `No ${reg.label} numbers configured in knownMarks.js`,
+                lastFetched: null,
+              },
+            }))
+            const n = ++fetchCountRef.current
+            setProgress({ current: n, total: Math.max(total, 1), msg: `${reg.label}: no numbers configured` })
+            return
+          }
+
+          try {
+            const url  = `${reg.apiPath}?${reg.queryParam}=${encodeURIComponent(allNumbers.join(','))}`
+            setProgress({ current: fetchCountRef.current, total: Math.max(total, 1), msg: `Fetching ${reg.label}…` })
+            const res  = await fetch(url)
+            const json = await res.json()
+
+            if (json.status === 'pending') {
+              hasPending = true
+            } else if (!res.ok) {
+              lastError = json.error || `HTTP ${res.status}`
+            } else {
+              ;(json.results ?? []).forEach(r => regResults.push(r))
+            }
+          } catch (err) {
+            lastError = err.message
+          }
+
+          const n = ++fetchCountRef.current
+          setProgress({ current: n, total: Math.max(total, 1), msg: `${reg.label} done (${regResults.length} marks)` })
+
+        } else if (reg.fetchStrategy === 'holder') {
+          // Per-subsidiary holder search (e.g. EUIPO)
+          await Promise.allSettled(
+            activeSubs.map(async sub => {
+              try {
+                const url  = `${reg.apiPath}?${reg.queryParam}=${encodeURIComponent(sub.name)}`
+                const res  = await fetch(url)
+                const json = await res.json()
+
+                if (json.status === 'pending') {
+                  hasPending = true
+                } else if (!res.ok) {
+                  lastError = json.error || `HTTP ${res.status}`
+                } else {
+                  ;(json.results ?? []).forEach(r => regResults.push(r))
+                }
+              } catch (err) {
+                lastError = err.message
+              } finally {
+                const n = ++fetchCountRef.current
+                setProgress({
+                  current: n,
+                  total:   Math.max(total, 1),
+                  msg:     `Fetching ${sub.shortName} from ${reg.label}… (${n} of ${total})`,
+                })
+              }
+            })
+          )
+        }
+
+        // Flush results into state
         if (regResults.length > 0) {
           setLiveResults(prev => {
             const existingIds = new Set(prev.map(r => r.id))
@@ -140,8 +217,8 @@ export default function App() {
         setRegistryStatus(prev => ({
           ...prev,
           [reg.id]: {
-            status:      hasPending                              ? 'pending'
-                       : lastError && regResults.length === 0   ? 'error'
+            status:      hasPending                            ? 'pending'
+                       : lastError && regResults.length === 0 ? 'error'
                        : 'ok',
             count:       regResults.length,
             error:       lastError,
@@ -266,6 +343,7 @@ export default function App() {
             progress={progress}
             lastUpdated={lastUpdated}
             onRefresh={fetchAll}
+            onCsvUpload={handleCsvUpload}
           />
         )}
         {activeTab === 'entity'    && (

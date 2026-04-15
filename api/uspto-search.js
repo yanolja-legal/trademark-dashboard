@@ -458,14 +458,16 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(204).end()
   if (req.method !== 'GET')     return res.status(405).json({ error: 'Method not allowed' })
 
-  const owner = (req.query.owner || '').trim()
-  if (!owner) {
-    return res.status(400).json({ error: 'Missing required query parameter: owner' })
-  }
-
-  // ?serialNumbers=76044902,76044903  bypasses Step 1 for direct TSDR lookups
+  // ?serialNumbers=76044902,76044903  — primary path for known-serial lookups
   const knownSerials = (req.query.serialNumbers || '')
     .split(',').map(s => s.trim().replace(/\D/g, '')).filter(s => s.length >= 7)
+
+  // owner is only needed for the search-based fallback
+  const owner = (req.query.owner || '').trim()
+
+  if (!knownSerials.length && !owner) {
+    return res.status(400).json({ error: 'Missing required parameter: serialNumbers or owner' })
+  }
 
   // ── Step 1: find serial numbers ──────────────────────────────────────────
   let serials
@@ -481,7 +483,7 @@ export default async function handler(req, res) {
           error     : 'USPTO trademark search is not accessible as a public REST API.',
           detail    : 'tmsearch.uspto.gov is a JavaScript SPA; its underlying search endpoint could not be reached server-side.',
           tried     : searchErr.tried,
-          workaround: `Supply known serial numbers directly via the ?serialNumbers= parameter, e.g.: ?owner=${enc(owner)}&serialNumbers=76044902,87654321`,
+          workaround: 'Supply known serial numbers directly via the ?serialNumbers= parameter, e.g.: ?serialNumbers=76044902,87654321',
           apiKeyNote: process.env.USPTO_API_KEY
             ? 'USPTO_API_KEY is set — TSDR record fetching will work once serial numbers are supplied.'
             : 'USPTO_API_KEY is NOT set — set it to enable TSDR record fetching (free key at developer.uspto.gov).',
