@@ -83,31 +83,45 @@ async function fetchAllPages(owner, username, password) {
   let start     = 1
 
   for (let page = 0; page < MAX_PAGES; page++) {
-    const url = `${MARKER_BASE}/${enc(owner)}/status/all/start/${start}/username/${enc(username)}/password/${enc(password)}`
+    const url       = `${MARKER_BASE}/${enc(owner)}/status/all/start/${start}/username/${enc(username)}/password/${enc(password)}`
+    const maskedUrl = `${MARKER_BASE}/${enc(owner)}/status/all/start/${start}/username/${enc(username)}/password/***`
+
+    console.log(`[uspto-search] page=${page + 1} owner="${owner}" start=${start}`)
+    console.log(`[uspto-search] GET ${maskedUrl}`)
 
     let res
     try {
       res = await fetch(url, { headers: { Accept: 'application/json' } })
     } catch (err) {
+      console.error(`[uspto-search] Network error: ${err.message}`)
       throw new Error(`Marker API network error: ${err.message}`)
     }
+
+    console.log(`[uspto-search] HTTP ${res.status} ${res.statusText}`)
 
     const rawBody = await res.text().catch(() => '(unreadable)')
 
     if (!res.ok) {
-      throw new Error(`Marker API HTTP ${res.status}: ${rawBody.slice(0, 300)}`)
+      console.error(`[uspto-search] Error body: ${rawBody}`)
+      throw new Error(`HTTP ${res.status} ${res.statusText} — ${rawBody.slice(0, 400)}`)
     }
+
+    console.log(`[uspto-search] Response preview: ${rawBody.slice(0, 300)}`)
 
     let json
     try {
       json = JSON.parse(rawBody)
     } catch {
-      throw new Error(`Marker API response was not JSON: ${rawBody.slice(0, 300)}`)
+      console.error(`[uspto-search] Response is not JSON: ${rawBody.slice(0, 300)}`)
+      throw new Error(`Response was not JSON (HTTP 200) — ${rawBody.slice(0, 300)}`)
     }
 
     const trademarks = json.trademarks ?? json.results ?? json.data ?? []
     if (Array.isArray(trademarks)) {
       trademarks.forEach(tm => results.push(normalise(tm)))
+      console.log(`[uspto-search] page=${page + 1} parsed ${trademarks.length} trademarks (running total: ${results.length})`)
+    } else {
+      console.log(`[uspto-search] page=${page + 1} unexpected shape — top-level keys: ${Object.keys(json).join(', ')}`)
     }
 
     // Follow pagination: `next` is the start index for the next page
@@ -115,6 +129,7 @@ async function fetchAllPages(owner, username, password) {
     if (next && Number(next) > start) {
       start = Number(next)
     } else {
+      console.log(`[uspto-search] pagination done — no next page (next=${next})`)
       break
     }
   }
@@ -135,6 +150,8 @@ export default async function handler(req, res) {
   const username = process.env.MARKER_API_USERNAME ?? ''
   const password = process.env.MARKER_API_PASSWORD ?? ''
 
+  console.log(`[uspto-search] credentials configured: username=${username ? 'YES' : 'MISSING'} password=${password ? 'YES' : 'MISSING'}`)
+
   if (!username || !password) {
     return res.status(200).json({
       status  : 'pending',
@@ -147,10 +164,13 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Missing required query parameter: owner' })
   }
 
+  console.log(`[uspto-search] request for owner="${owner}"`)
+
   // ── Cache lookup ────────────────────────────────────────────────────────────
   const cacheKey = owner.toLowerCase()
   const cached   = cache.get(cacheKey)
   if (cached && cached.expiresAt > Date.now()) {
+    console.log(`[uspto-search] cache hit for "${owner}" (${cached.results.length} results)`)
     return res.status(200).json({
       count   : cached.results.length,
       results : cached.results,
@@ -162,13 +182,15 @@ export default async function handler(req, res) {
   try {
     const results = await fetchAllPages(owner, username, password)
 
+    console.log(`[uspto-search] SUCCESS "${owner}" — ${results.length} total results`)
     cache.set(cacheKey, { results, expiresAt: Date.now() + CACHE_TTL_MS })
 
     return res.status(200).json({ count: results.length, results })
 
   } catch (err) {
+    console.error(`[uspto-search] FAILED for owner="${owner}": ${err.message}`)
     return res.status(502).json({
-      error  : 'Marker API request failed',
+      error  : `Marker API request failed: ${err.message}`,
       detail : err.message,
     })
   }
