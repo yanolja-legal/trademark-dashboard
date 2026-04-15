@@ -197,7 +197,9 @@ export default function ApiSetup({ registryStatus = {} }) {
               icon = <AlertCircle className="w-4 h-4" />
               iconCls  = 'text-teal-400'
               labelCls = 'text-teal-400'
-              statusLabel = rs.count > 0 ? `CSV loaded · ${rs.count} marks` : 'CSV upload required — see Portfolio tab'
+              statusLabel = rs.count > 0
+                ? `Manual upload · ${rs.count} marks`
+                : 'Manual upload required — see Portfolio tab'
             } else if (isNoMarks) {
               icon = <AlertCircle className="w-4 h-4" />
               iconCls  = 'text-yellow-400'
@@ -233,7 +235,10 @@ export default function ApiSetup({ registryStatus = {} }) {
                   <p className={`text-xs font-medium ${labelCls}`}>{statusLabel}</p>
                   {rs.lastFetched && (
                     <p className="text-[10px] text-slate-500 mt-0.5">
-                      {new Date(rs.lastFetched).toLocaleTimeString()}
+                      {isCsv
+                        ? `last: ${new Date(rs.lastFetched).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}`
+                        : new Date(rs.lastFetched).toLocaleTimeString()
+                      }
                     </p>
                   )}
                 </div>
@@ -246,10 +251,14 @@ export default function ApiSetup({ registryStatus = {} }) {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
 
         {/* USPTO */}
-        <Section icon={Key} title="USPTO" subtitle="United States Patent and Trademark Office" accent="#00b4d8">
-          <ApiKeyInput label="API Key"   defaultValue="uspto_live_a1b2c3d4e5f6" />
-          <ApiKeyInput label="Client ID" defaultValue="yanolja_client_001" placeholder="client_id" />
-          <ApiKeyInput label="Base URL"  defaultValue="https://developer.uspto.gov/trademark/v1" readOnly />
+        <Section icon={Key} title="USPTO" subtitle="Marker API — search by owner name (1,000 free searches/month)" accent="#00b4d8">
+          <ApiKeyInput label="Username" defaultValue="$MARKER_API_USERNAME" placeholder="Marker API username" readOnly />
+          <ApiKeyInput label="Password" defaultValue="$MARKER_API_PASSWORD" placeholder="Marker API password" readOnly />
+          <ApiKeyInput label="Base URL" defaultValue="https://markerapi.com/api/v2/trademarks" readOnly />
+          <div className="text-xs text-slate-400 leading-relaxed">
+            Results are cached per subsidiary for <span className="text-slate-300 font-medium">24 hours</span> to conserve API quota.
+            Free tier: 1,000 searches/month at <span className="text-accent-blue font-mono">markerapi.com</span>.
+          </div>
           <EntityChips />
         </Section>
 

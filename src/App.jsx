@@ -28,7 +28,6 @@ const INITIAL_STATUS = Object.fromEntries(
 
 /** Returns true if a trademark record has any flag that requires attention. */
 function hasFlag(t) {
-  if (t.maintenanceAlert)    return true
   if (t.ipIndiaAlert)        return true
   if (t.ilpoExpiryAlert)     return true
   if (t.pendingOfficeAction) return true

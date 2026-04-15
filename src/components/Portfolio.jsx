@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useCallback, useRef } from 'react'
 import {
   Search, ChevronUp, ChevronDown, ChevronLeft, ChevronRight,
-  X, Globe, Loader2, AlertTriangle, ShieldAlert, Clock, RefreshCw, Upload,
+  X, Globe, Loader2, AlertTriangle, Clock, RefreshCw, Upload,
 } from 'lucide-react'
 import { differenceInDays, parseISO, format, isValid } from 'date-fns'
 import { REGISTRIES } from '../registries'
@@ -99,44 +99,6 @@ function DesignatedCountriesTooltip({ countries }) {
             Designated countries ({countries.length})
           </p>
           <p className="font-mono">{countries.join(', ')}</p>
-        </div>
-      )}
-    </span>
-  )
-}
-
-/**
- * Section 8 / 15 affidavit compliance badge (USPTO).
- * `alert` shape: { types: string[], status: 'due'|'overdue', message: string }
- */
-function MaintenanceBadge({ alert }) {
-  const [open, setOpen] = useState(false)
-  if (!alert) return null
-  const isOverdue = alert.status === 'overdue'
-  const label     = alert.types.map(t => t === 'section8' ? 'Sec.8' : 'Sec.15').join('+')
-  const badgeCls  = isOverdue
-    ? 'bg-red-500/15 text-red-400 border-red-500/30'
-    : 'bg-amber-500/15 text-amber-400 border-amber-500/30'
-  const iconCls   = isOverdue ? 'text-red-400' : 'text-amber-400'
-  return (
-    <span className="relative inline-flex items-center">
-      <button
-        onMouseEnter={() => setOpen(true)}
-        onMouseLeave={() => setOpen(false)}
-        onFocus={() => setOpen(true)}
-        onBlur={() => setOpen(false)}
-        className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold border ${badgeCls}`}
-        aria-label={alert.message}
-      >
-        <ShieldAlert className={`w-2.5 h-2.5 ${iconCls}`} />
-        {label} {isOverdue ? 'OVERDUE' : 'DUE'}
-      </button>
-      {open && (
-        <div className="absolute bottom-full left-0 mb-1.5 z-50 w-64 p-3 rounded-lg bg-navy-700 border border-navy-400 shadow-xl text-xs text-slate-300 leading-relaxed pointer-events-none">
-          <p className={`font-semibold mb-1 text-[11px] uppercase tracking-wider ${isOverdue ? 'text-red-400' : 'text-amber-400'}`}>
-            {isOverdue ? 'Compliance Overdue' : 'Compliance Due'}
-          </p>
-          <p>{alert.message}</p>
         </div>
       )}
     </span>
@@ -333,34 +295,38 @@ function parseCsv(text) {
 
 /**
  * Normalise a parsed CSV row into a trademark object.
- * reg.value is the exact registry string (e.g. 'IP India', 'ILPO').
+ * Expected columns (case-insensitive, punctuation-tolerant):
+ *   Applicant, Mark Name, Application No., Registration No.,
+ *   NCL Class, Filed Date, Registration Date, Expiry Date, Status
  */
 function normaliseCsvRow(row, reg, idx) {
-  // Try multiple column name variants for each field
+  // After parseCsv, headers are lowercased with non-alphanumeric chars → '_'
+  // e.g. "Application No." → "application_no_"
   const get = (...keys) => {
     for (const k of keys) {
-      const v = row[k] || row[k.replace(/ /g, '_').toLowerCase()] || ''
+      const v = row[k] || ''
       if (v) return v
     }
     return ''
   }
 
-  const applicant      = get('applicant', 'applicant_name', 'owner')
-  const appNo          = get('application_number', 'application_no', 'app_no', 'serial_no', 'serial_number')
-  const markName       = get('mark_name', 'trademark_name', 'trademark', 'mark', 'brand')
-  const ncl            = get('class', 'nice_class', 'ncl', 'classes')
-  const applicationDate = get('filed_date', 'application_date', 'filing_date', 'filed')
-  const expiryDate     = get('valid_until', 'expiry_date', 'renewal_date', 'expiry')
-  const rawStatus      = get('status', 'trademark_status')
+  const applicant       = get('applicant', 'applicant_name', 'owner')
+  const markName        = get('mark_name', 'trademark_name', 'trademark', 'mark', 'brand')
+  const appNo           = get('application_no_', 'application_no', 'application_number', 'app_no', 'serial_no', 'serial_number')
+  const regNo           = get('registration_no_', 'registration_no', 'registration_number', 'reg_no')
+  const ncl             = get('ncl_class', 'ncl', 'class', 'nice_class', 'classes', 'code')
+  const applicationDate = get('filed_date', 'filing_date', 'application_date', 'filed')
+  const registrationDate = get('registration_date', 'registered', 'registration_date_')
+  const expiryDate      = get('expiry_date', 'expiry_date_', 'expiry', 'valid_until', 'renewal_date')
+  const rawStatus       = get('status', 'trademark_status', 'mark_status')
 
-  // Normalise status
-  const s = rawStatus.toLowerCase()
+  const s = (rawStatus || '').toLowerCase()
   let status = 'Unknown'
-  if (s.includes('registered') || s.includes('active')) status = 'Active'
-  else if (s.includes('pending') || s.includes('filed')) status = 'Pending'
-  else if (s.includes('expir')) status = 'Expired'
-  else if (s.includes('oppos')) status = 'Opposed'
-  else if (s.includes('object')) { status = 'Pending' }
+  if (s.includes('registered') || s.includes('active'))           status = 'Active'
+  else if (s.includes('pending') || s.includes('filed') ||
+           s.includes('object'))                                   status = 'Pending'
+  else if (s.includes('expir'))                                    status = 'Expired'
+  else if (s.includes('oppos') || s.includes('refus'))             status = 'Opposed'
   else if (rawStatus) status = rawStatus.charAt(0).toUpperCase() + rawStatus.slice(1).toLowerCase()
 
   return {
@@ -370,12 +336,11 @@ function normaliseCsvRow(row, reg, idx) {
     applicant,
     markName:         markName || '—',
     serialNo:         appNo,
-    regNo:            get('registration_number', 'reg_no', 'reg_number'),
-    kindOfMark:       get('kind', 'mark_type', 'type', 'kind_of_mark') || '—',
+    regNo,
+    kindOfMark:       '—',
     ncl,
     applicationDate,
-    publicationDate:  get('publication_date', 'published'),
-    registrationDate: get('registration_date', 'registered'),
+    registrationDate,
     expiryDate,
     status,
     source:           'csv',
@@ -386,12 +351,12 @@ function normaliseCsvRow(row, reg, idx) {
  * CSV upload panel for a single registry (IP India or ILPO).
  */
 function CsvUploadPanel({ reg, registryStatus, onCsvUpload }) {
-  const inputRef   = useRef(null)
-  const [error, setError]     = useState(null)
+  const inputRef              = useRef(null)
+  const [error,   setError]   = useState(null)
   const [isDragging, setDrag] = useState(false)
 
-  const rs = registryStatus[reg.id] ?? {}
-  const hasData = rs.count > 0
+  const rs          = registryStatus[reg.id] ?? {}
+  const hasData     = rs.count > 0
   const lastFetched = rs.lastFetched
 
   const processFile = useCallback(file => {
@@ -419,39 +384,53 @@ function CsvUploadPanel({ reg, registryStatus, onCsvUpload }) {
     reader.readAsText(file)
   }, [reg, onCsvUpload])
 
+  const downloadUrl = reg.id === 'ipindia' ? 'ipindia.gov.in' : 'trademarks.justice.gov.il'
+  const lastLabel   = lastFetched
+    ? format(new Date(lastFetched), 'dd MMM yyyy, HH:mm')
+    : 'Never'
+
   return (
     <div className="bg-navy-800 border border-navy-500 rounded-xl p-5">
-      <div className="flex items-center justify-between mb-3">
+      {/* Header */}
+      <div className="flex items-start justify-between mb-4">
         <div>
-          <h3 className="font-semibold text-white text-sm">{reg.label} — Manual CSV Upload</h3>
-          <p className="text-xs text-slate-400 mt-0.5">{reg.note}</p>
+          <div className="flex items-center gap-2 mb-0.5">
+            <h3 className="font-semibold text-white text-sm">{reg.label}</h3>
+            <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide bg-slate-500/15 text-slate-400 border border-slate-500/25">
+              Manual Upload
+            </span>
+          </div>
+          <p className="text-xs text-slate-400">
+            Download your trademark data from{' '}
+            <span className="text-slate-300 font-mono">{downloadUrl}</span>
+            {' '}and upload here.{' '}
+            <span className={lastFetched ? 'text-slate-400' : 'text-slate-500'}>
+              Last uploaded: <span className={lastFetched ? 'text-green-400 font-medium' : ''}>{lastLabel}</span>
+            </span>
+          </p>
         </div>
         {hasData && (
-          <div className="text-right">
-            <span className="text-xs text-green-400 font-medium">{rs.count} marks loaded</span>
-            {lastFetched && (
-              <p className="text-[10px] text-slate-500 mt-0.5">
-                uploaded {format(new Date(lastFetched), 'dd MMM HH:mm')}
-              </p>
-            )}
-          </div>
+          <span className="text-xs text-green-400 font-medium flex-shrink-0 ml-4">
+            {rs.count} marks loaded
+          </span>
         )}
       </div>
 
+      {/* Drop zone */}
       <div
         onDragOver={e => { e.preventDefault(); setDrag(true) }}
         onDragLeave={() => setDrag(false)}
         onDrop={e => { e.preventDefault(); setDrag(false); processFile(e.dataTransfer.files[0]) }}
-        className={`border-2 border-dashed rounded-lg p-5 text-center transition-colors cursor-pointer
+        className={`border-2 border-dashed rounded-lg px-5 py-4 text-center transition-colors cursor-pointer
           ${isDragging ? 'border-accent-blue bg-accent-blue/5' : 'border-navy-400 hover:border-navy-300'}`}
         onClick={() => inputRef.current?.click()}
       >
-        <Upload className="w-6 h-6 text-slate-400 mx-auto mb-2" />
+        <Upload className="w-5 h-5 text-slate-400 mx-auto mb-1.5" />
         <p className="text-sm text-slate-300">
           {hasData ? 'Drop a new CSV to replace, or click to browse' : 'Drop CSV here or click to browse'}
         </p>
-        <p className="text-xs text-slate-500 mt-1">
-          Expected columns: {reg.csvColumns?.join(', ')}
+        <p className="text-[11px] text-slate-500 mt-1 font-mono">
+          {reg.csvColumns?.join(' · ')}
         </p>
         <input
           ref={inputRef}
@@ -551,7 +530,6 @@ export default function Portfolio({ data, registryStatus = {}, progress, lastUpd
   const errorRegs     = REGISTRIES.filter(r => registryStatus[r.id]?.status === 'error')
 
   // Alert counts
-  const maintenanceCount = data.filter(r => r.maintenanceAlert).length
   const indiaAlertCount  = data.filter(r => r.ipIndiaAlert).length
   const ilpoExpiryCount  = data.filter(r => r.ilpoExpiryAlert).length
 
@@ -632,16 +610,6 @@ export default function Portfolio({ data, registryStatus = {}, progress, lastUpd
           <AlertTriangle className="w-4 h-4 flex-shrink-0" />
           <span>
             <strong>{indiaAlertCount}</strong> IP India mark{indiaAlertCount !== 1 ? 's require' : ' requires'} active monitoring — objected or opposed marks in a registry with known processing backlogs.
-          </span>
-        </div>
-      )}
-
-      {/* ── USPTO maintenance banner ── */}
-      {maintenanceCount > 0 && (
-        <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-amber-500/10 border border-amber-500/25 text-amber-400 text-sm">
-          <ShieldAlert className="w-4 h-4 flex-shrink-0" />
-          <span>
-            <strong>{maintenanceCount}</strong> USPTO mark{maintenanceCount !== 1 ? 's have' : ' has'} a Section 8 or 15 affidavit due or overdue — compliance action required.
           </span>
         </div>
       )}
@@ -757,7 +725,6 @@ export default function Portfolio({ data, registryStatus = {}, progress, lastUpd
                   key={tm.id}
                   className={`border-b border-navy-600/40 hover:bg-navy-700/30 transition-colors
                     ${tm.status === 'Expired' ? 'opacity-50' : ''}
-                    ${tm.maintenanceAlert?.status === 'overdue' ? 'bg-red-500/[0.03]' : ''}
                   `}
                 >
                   {/* Applicant */}
@@ -766,12 +733,17 @@ export default function Portfolio({ data, registryStatus = {}, progress, lastUpd
                   {/* Mark name */}
                   <td className="px-4 py-3 font-semibold text-white whitespace-nowrap">{tm.markName}</td>
 
-                  {/* Registry badge + SANDBOX tag */}
+                  {/* Registry badge + source tags */}
                   <td className="px-4 py-3">
                     <div className="flex flex-col gap-1 items-start">
                       <span className={`px-2 py-0.5 rounded text-xs font-mono font-medium border ${REGISTRY_STYLES[tm.registry] || REGISTRY_DEFAULT}`}>
                         {tm.registry}
                       </span>
+                      {tm.source === 'csv' && (
+                        <span className="px-1.5 py-0 rounded text-[9px] font-bold border bg-slate-500/10 text-slate-400 border-slate-500/25 tracking-wide">
+                          MANUAL UPLOAD
+                        </span>
+                      )}
                       {tm.isSandbox && (
                         <span className="px-1.5 py-0 rounded text-[9px] font-bold border bg-amber-500/10 text-amber-400 border-amber-500/25 tracking-wide">
                           SANDBOX
@@ -817,7 +789,6 @@ export default function Portfolio({ data, registryStatus = {}, progress, lastUpd
                   <td className="px-4 py-3 whitespace-nowrap">
                     <div className="flex flex-wrap items-center gap-1">
                       <ExpiryFlagBadge    expiryDate={tm.expiryDate} registry={tm.registry} status={tm.status} />
-                      <MaintenanceBadge   alert={tm.maintenanceAlert} />
                       <OfficeActionBadge  pending={tm.pendingOfficeAction} />
                       <IPIndiaWarningBadge alert={tm.ipIndiaAlert} />
                       <ILPOExpiryBadge   alert={tm.ilpoExpiryAlert} />

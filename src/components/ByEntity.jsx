@@ -7,7 +7,6 @@ import { REGISTRIES }   from '../registries.js'
 // ── helpers ───────────────────────────────────────────────────────────────────
 
 function hasFlag(t) {
-  if (t.maintenanceAlert)    return true
   if (t.ipIndiaAlert)        return true
   if (t.ilpoExpiryAlert)     return true
   if (t.pendingOfficeAction) return true
