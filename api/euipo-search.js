@@ -17,7 +17,7 @@
  * Returns 200 { count, results[] } on success.
  */
 
-export const config = { runtime: 'nodejs18.x' }
+export const config = { runtime: 'nodejs' }
 
 // ── constants ──────────────────────────────────────────────────────────────────
 
