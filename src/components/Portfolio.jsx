@@ -1,7 +1,7 @@
-import React, { useState, useMemo, useCallback, useRef } from 'react'
+import React, { useState, useMemo } from 'react'
 import {
   Search, ChevronUp, ChevronDown, ChevronLeft, ChevronRight,
-  X, Globe, Loader2, AlertTriangle, Clock, RefreshCw, Upload,
+  X, Globe, Loader2, AlertTriangle, Clock, RefreshCw,
 } from 'lucide-react'
 import { differenceInDays, parseISO, format, isValid } from 'date-fns'
 import { REGISTRIES } from '../registries'
@@ -258,198 +258,6 @@ function ExpiryFlagBadge({ expiryDate, registry, status }) {
   )
 }
 
-// ── CSV helpers ───────────────────────────────────────────────────────────────
-
-/**
- * Parse a CSV string into an array of objects keyed by the header row.
- * Handles quoted fields with embedded commas.
- */
-function parseCsv(text) {
-  const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n').filter(l => l.trim())
-  if (lines.length < 2) return []
-
-  const parseRow = line => {
-    const fields = []
-    let cur = '', inQuote = false
-    for (let i = 0; i < line.length; i++) {
-      const ch = line[i]
-      if (ch === '"') {
-        if (inQuote && line[i + 1] === '"') { cur += '"'; i++ }
-        else inQuote = !inQuote
-      } else if (ch === ',' && !inQuote) {
-        fields.push(cur.trim()); cur = ''
-      } else {
-        cur += ch
-      }
-    }
-    fields.push(cur.trim())
-    return fields
-  }
-
-  const headers = parseRow(lines[0]).map(h => h.toLowerCase().replace(/[^a-z0-9]+/g, '_'))
-  return lines.slice(1).map(line => {
-    const vals = parseRow(line)
-    return Object.fromEntries(headers.map((h, i) => [h, vals[i] ?? '']))
-  })
-}
-
-/**
- * Normalise a parsed CSV row into a trademark object.
- * Expected columns (case-insensitive, punctuation-tolerant):
- *   Applicant, Mark Name, Application No., Registration No.,
- *   NCL Class, Filed Date, Registration Date, Expiry Date, Status
- */
-function normaliseCsvRow(row, reg, idx) {
-  // After parseCsv, headers are lowercased with non-alphanumeric chars → '_'
-  // e.g. "Application No." → "application_no_"
-  const get = (...keys) => {
-    for (const k of keys) {
-      const v = row[k] || ''
-      if (v) return v
-    }
-    return ''
-  }
-
-  const applicant       = get('applicant', 'applicant_name', 'owner')
-  const markName        = get('mark_name', 'trademark_name', 'trademark', 'mark', 'brand')
-  const appNo           = get('application_no_', 'application_no', 'application_number', 'app_no', 'serial_no', 'serial_number')
-  const regNo           = get('registration_no_', 'registration_no', 'registration_number', 'reg_no')
-  const ncl             = get('ncl_class', 'ncl', 'class', 'nice_class', 'classes', 'code')
-  const applicationDate = get('filed_date', 'filing_date', 'application_date', 'filed')
-  const registrationDate = get('registration_date', 'registered', 'registration_date_')
-  const expiryDate      = get('expiry_date', 'expiry_date_', 'expiry', 'valid_until', 'renewal_date')
-  const rawStatus       = get('status', 'trademark_status', 'mark_status')
-
-  const s = (rawStatus || '').toLowerCase()
-  let status = 'Unknown'
-  if (s.includes('registered') || s.includes('active'))           status = 'Active'
-  else if (s.includes('pending') || s.includes('filed') ||
-           s.includes('object'))                                   status = 'Pending'
-  else if (s.includes('expir'))                                    status = 'Expired'
-  else if (s.includes('oppos') || s.includes('refus'))             status = 'Opposed'
-  else if (rawStatus) status = rawStatus.charAt(0).toUpperCase() + rawStatus.slice(1).toLowerCase()
-
-  return {
-    id:               `${reg.id}-csv-${appNo || idx}`,
-    registry:         reg.value,
-    country:          reg.id === 'ipindia' ? 'India' : reg.id === 'ilpo' ? 'Israel' : reg.label,
-    applicant,
-    markName:         markName || '—',
-    serialNo:         appNo,
-    regNo,
-    kindOfMark:       '—',
-    ncl,
-    applicationDate,
-    registrationDate,
-    expiryDate,
-    status,
-    source:           'csv',
-  }
-}
-
-/**
- * CSV upload panel for a single registry (IP India or ILPO).
- */
-function CsvUploadPanel({ reg, registryStatus, onCsvUpload }) {
-  const inputRef              = useRef(null)
-  const [error,   setError]   = useState(null)
-  const [isDragging, setDrag] = useState(false)
-
-  const rs          = registryStatus[reg.id] ?? {}
-  const hasData     = rs.count > 0
-  const lastFetched = rs.lastFetched
-
-  const processFile = useCallback(file => {
-    setError(null)
-    if (!file) return
-    if (!file.name.endsWith('.csv') && file.type !== 'text/csv') {
-      setError('Please upload a .csv file')
-      return
-    }
-    const reader = new FileReader()
-    reader.onload = e => {
-      try {
-        const rows = parseCsv(e.target.result)
-        if (rows.length === 0) { setError('CSV file appears to be empty or invalid'); return }
-        const marks = rows
-          .map((row, i) => normaliseCsvRow(row, reg, i))
-          .filter(m => m.applicant || m.markName !== '—')
-        if (marks.length === 0) { setError('No valid trademark rows found in CSV'); return }
-        onCsvUpload(reg.id, marks)
-      } catch (err) {
-        setError(`Parse error: ${err.message}`)
-      }
-    }
-    reader.onerror = () => setError('Failed to read file')
-    reader.readAsText(file)
-  }, [reg, onCsvUpload])
-
-  const downloadUrl = reg.id === 'ipindia' ? 'ipindia.gov.in' : 'trademarks.justice.gov.il'
-  const lastLabel   = lastFetched
-    ? format(new Date(lastFetched), 'dd MMM yyyy, HH:mm')
-    : 'Never'
-
-  return (
-    <div className="bg-navy-800 border border-navy-500 rounded-xl p-5">
-      {/* Header */}
-      <div className="flex items-start justify-between mb-4">
-        <div>
-          <div className="flex items-center gap-2 mb-0.5">
-            <h3 className="font-semibold text-white text-sm">{reg.label}</h3>
-            <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide bg-slate-500/15 text-slate-400 border border-slate-500/25">
-              Manual Upload
-            </span>
-          </div>
-          <p className="text-xs text-slate-400">
-            Download your trademark data from{' '}
-            <span className="text-slate-300 font-mono">{downloadUrl}</span>
-            {' '}and upload here.{' '}
-            <span className={lastFetched ? 'text-slate-400' : 'text-slate-500'}>
-              Last uploaded: <span className={lastFetched ? 'text-green-400 font-medium' : ''}>{lastLabel}</span>
-            </span>
-          </p>
-        </div>
-        {hasData && (
-          <span className="text-xs text-green-400 font-medium flex-shrink-0 ml-4">
-            {rs.count} marks loaded
-          </span>
-        )}
-      </div>
-
-      {/* Drop zone */}
-      <div
-        onDragOver={e => { e.preventDefault(); setDrag(true) }}
-        onDragLeave={() => setDrag(false)}
-        onDrop={e => { e.preventDefault(); setDrag(false); processFile(e.dataTransfer.files[0]) }}
-        className={`border-2 border-dashed rounded-lg px-5 py-4 text-center transition-colors cursor-pointer
-          ${isDragging ? 'border-accent-blue bg-accent-blue/5' : 'border-navy-400 hover:border-navy-300'}`}
-        onClick={() => inputRef.current?.click()}
-      >
-        <Upload className="w-5 h-5 text-slate-400 mx-auto mb-1.5" />
-        <p className="text-sm text-slate-300">
-          {hasData ? 'Drop a new CSV to replace, or click to browse' : 'Drop CSV here or click to browse'}
-        </p>
-        <p className="text-[11px] text-slate-500 mt-1 font-mono">
-          {reg.csvColumns?.join(' · ')}
-        </p>
-        <input
-          ref={inputRef}
-          type="file"
-          accept=".csv,text/csv"
-          className="hidden"
-          onChange={e => processFile(e.target.files?.[0])}
-        />
-      </div>
-
-      {error && (
-        <p className="mt-2 text-xs text-red-400 flex items-center gap-1">
-          <X className="w-3.5 h-3.5 flex-shrink-0" />{error}
-        </p>
-      )}
-    </div>
-  )
-}
-
 // ── main Portfolio component ──────────────────────────────────────────────────
 
 /**
@@ -459,9 +267,8 @@ function CsvUploadPanel({ reg, registryStatus, onCsvUpload }) {
  *   progress       — { current, total, msg } | null
  *   lastUpdated    — Date | null
  *   onRefresh      — () => void
- *   onCsvUpload    — (registryId: string, rows: object[]) => void
  */
-export default function Portfolio({ data, registryStatus = {}, progress, lastUpdated, onRefresh, onCsvUpload }) {
+export default function Portfolio({ data, registryStatus = {}, progress, lastUpdated, onRefresh }) {
   const [search,   setSearch]   = useState('')
   const [status,   setStatus]   = useState('All')
   const [registry, setRegistry] = useState('All')
@@ -614,16 +421,6 @@ export default function Portfolio({ data, registryStatus = {}, progress, lastUpd
           </span>
         </div>
       )}
-
-      {/* ── CSV Upload panels (IP India + ILPO) ── */}
-      {REGISTRIES.filter(r => r.fetchStrategy === 'csv').map(reg => (
-        <CsvUploadPanel
-          key={reg.id}
-          reg={reg}
-          registryStatus={registryStatus}
-          onCsvUpload={onCsvUpload}
-        />
-      ))}
 
       {/* ── Summary cards ── */}
       <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">

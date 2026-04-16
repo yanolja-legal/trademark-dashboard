@@ -111,6 +111,15 @@ export default function App() {
     }))
   }, [])
 
+  const handleCsvClear = useCallback((registryId) => {
+    const reg = REGISTRIES.find(r => r.id === registryId)
+    setCsvResults(prev => prev.filter(r => r.registry !== reg?.value))
+    setRegistryStatus(prev => ({
+      ...prev,
+      [registryId]: { status: 'csv', count: 0, error: null, lastFetched: null },
+    }))
+  }, [])
+
   // ── Fetch all registries sequentially (one entity at a time) ─────────────────
 
   const fetchAll = useCallback(async () => {
@@ -195,7 +204,8 @@ export default function App() {
           })
 
           try {
-            const url  = `${reg.apiPath}?${reg.queryParam}=${encodeURIComponent(sub.name)}`
+            const term = sub.searchKey ?? sub.name
+            const url  = `${reg.apiPath}?${reg.queryParam}=${encodeURIComponent(term)}`
             const res  = await fetchWithTimeout(url)
             const json = await res.json()
             if (json.status === 'pending') hasPending = true
@@ -283,8 +293,9 @@ export default function App() {
         })
       } else {
         // holder: fetch just this one entity
-        const url = `${reg.apiPath}?${reg.queryParam}=${encodeURIComponent(sub.name)}`
-        const res = await fetchWithTimeout(url)
+        const term = sub.searchKey ?? sub.name
+        const url  = `${reg.apiPath}?${reg.queryParam}=${encodeURIComponent(term)}`
+        const res  = await fetchWithTimeout(url)
         const json = await res.json()
         if (!res.ok) lastError = json.error || `HTTP ${res.status}`
         else ;(json.results ?? []).forEach(r => results.push(r))
@@ -415,7 +426,6 @@ export default function App() {
             progress={progress}
             lastUpdated={lastUpdated}
             onRefresh={fetchAll}
-            onCsvUpload={handleCsvUpload}
           />
         )}
         {activeTab === 'entity'    && (
@@ -429,7 +439,13 @@ export default function App() {
         )}
         {activeTab === 'alerts'    && <Alerts    data={combined} />}
         {activeTab === 'analytics' && <Analytics data={combined} />}
-        {activeTab === 'api'       && <ApiSetup  registryStatus={registryStatus} />}
+        {activeTab === 'api'       && (
+          <ApiSetup
+            registryStatus={registryStatus}
+            onCsvUpload={handleCsvUpload}
+            onCsvClear={handleCsvClear}
+          />
+        )}
       </main>
     </div>
   )
