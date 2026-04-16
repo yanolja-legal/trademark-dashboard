@@ -333,8 +333,8 @@ export default function Portfolio({ data, registryStatus = {}, progress, lastUpd
   // Registry status derived counts
   const liveCount     = Object.values(registryStatus).reduce((sum, s) => sum + (s.count || 0), 0)
   const isRefreshing  = progress !== null
-  const pendingRegs   = REGISTRIES.filter(r => registryStatus[r.id]?.status === 'pending')
-  const errorRegs     = REGISTRIES.filter(r => registryStatus[r.id]?.status === 'error')
+  const pendingRegs   = REGISTRIES.filter(r => !r.hidden && registryStatus[r.id]?.status === 'pending')
+  const errorRegs     = REGISTRIES.filter(r => !r.hidden && registryStatus[r.id]?.status === 'error')
 
   // Alert counts
   const indiaAlertCount  = data.filter(r => r.ipIndiaAlert).length

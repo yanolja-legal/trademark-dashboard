@@ -422,7 +422,7 @@ export default function ApiSetup({ registryStatus = {}, onCsvUpload, onCsvClear 
           <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-2">Live API</p>
         </div>
         <div className="divide-y divide-navy-600/20">
-          {REGISTRIES.filter(r => r.fetchStrategy !== 'csv').map(reg => (
+          {REGISTRIES.filter(r => r.fetchStrategy !== 'csv' && !r.hidden).map(reg => (
             <LiveApiCard
               key={reg.id}
               reg={reg}
@@ -452,16 +452,23 @@ export default function ApiSetup({ registryStatus = {}, onCsvUpload, onCsvClear 
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
 
-        {/* USPTO */}
-        <Section icon={Key} title="USPTO" subtitle="Marker API — search by owner name (1,000 free searches/month)" accent="#00b4d8">
-          <ApiKeyInput label="Username" defaultValue="$MARKER_API_USERNAME" placeholder="Marker API username" readOnly />
-          <ApiKeyInput label="Password" defaultValue="$MARKER_API_PASSWORD" placeholder="Marker API password" readOnly />
-          <ApiKeyInput label="Base URL" defaultValue="https://markerapi.com/api/v2/trademarks" readOnly />
-          <div className="text-xs text-slate-400 leading-relaxed">
-            Results are cached per subsidiary for <span className="text-slate-300 font-medium">24 hours</span> to conserve API quota.
-            Free tier: 1,000 searches/month at <span className="text-accent-blue font-mono">markerapi.com</span>.
+        {/* USPTO (via KIPRIS) */}
+        <Section icon={Clock} title="🇺🇸 USPTO (via KIPRIS)" subtitle="US trademark data — pending KIPRIS API key" accent="#6366f1">
+          <div className="flex items-center gap-2.5 px-4 py-3 rounded-lg bg-indigo-500/10 border border-indigo-500/20">
+            <Clock className="w-4 h-4 text-indigo-400 flex-shrink-0" />
+            <div>
+              <p className="text-sm font-medium text-indigo-300">Pending API Key Approval</p>
+              <p className="text-xs text-slate-400 mt-0.5">
+                US trademark data will be available once the KIPRIS API key is approved and added.
+              </p>
+            </div>
           </div>
-          <EntityChips />
+          <div className="text-xs text-slate-400 leading-relaxed pt-1">
+            Coverage: <span className="text-slate-300 font-medium">RightRez, Inc.</span> and{' '}
+            <span className="text-slate-300 font-medium">Innsoft, Inc.</span> — data will populate
+            automatically once the API key is configured.
+          </div>
+          <EntityChips label="Entities pending coverage" />
         </Section>
 
         {/* EUIPO */}

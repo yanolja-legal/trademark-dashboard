@@ -25,14 +25,15 @@ export const REGISTRIES = [
   },
   {
     id:            'uspto',
-    label:         'USPTO',
+    label:         'USPTO (via KIPRIS)',
     value:         'USPTO',
     fetchStrategy: 'none',
     apiPath:       null,
     queryParam:    null,
     knownMarksKey: 'uspto',
-    requiresKey:   false,
-    note:          'API integration pending — Marker API (previous provider) has shut down. Alternative under evaluation.',
+    requiresKey:   true,
+    hidden:        true,   // excluded from all data-pipeline views until KIPRIS US key arrives
+    note:          'KIPRIS US trademark data — API key approval pending',
   },
   {
     id:            'ipindia',
@@ -78,6 +79,6 @@ export const REGISTRIES = [
     queryParam:    null,
     knownMarksKey: 'kipris',
     requiresKey:   true,
-    note:          'Korean IP Registry — API integration pending',
+    note:          'Korean IP Registry (KR marks) — API key approval pending',
   },
 ]

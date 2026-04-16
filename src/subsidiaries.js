@@ -5,6 +5,7 @@ export const SUBSIDIARIES = [
   { id: 4, name: "Yanolja Cloud Solution PVT Ltd.", shortName: "YCS India",            searchKey: "Yanolja Cloud Solution", country: "India",        active: true },
   { id: 5, name: "Nol Universe Co., Ltd.",         shortName: "Nol Universe",          searchKey: "Nol Universe",          country: "South Korea",   active: true },
   { id: 6, name: "MST TRAVEL LTD.",                shortName: "MST Travel",            searchKey: "MST TRAVEL",            country: "Israel",        active: true },
+  // US entities — USPTO data will be sourced via KIPRIS US trademark API once the API key is approved
   { id: 7, name: "RightRez, Inc.",                 shortName: "RightRez",              searchKey: "RightRez",              country: "United States", active: true },
   { id: 8, name: "Innsoft, Inc.",                  shortName: "Innsoft",               searchKey: "Innsoft",               country: "United States", active: true },
 ];
