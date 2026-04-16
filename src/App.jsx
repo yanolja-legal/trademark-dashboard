@@ -27,6 +27,20 @@ const INITIAL_STATUS = Object.fromEntries(
 const CACHE_RESULTS   = 'tm-cache-results'
 const CACHE_TIMESTAMP = 'tm-cache-timestamp'
 const CACHE_REGISTRY  = 'tm-cache-registry-status'
+const CACHE_VERSION   = 'tm-cache-version'
+const CURRENT_VERSION = '2'   // bump this to invalidate all clients' cached data
+
+// Clear stale cache from before sample data was removed
+;(function bustStaleCache() {
+  try {
+    if (localStorage.getItem(CACHE_VERSION) !== CURRENT_VERSION) {
+      localStorage.removeItem(CACHE_RESULTS)
+      localStorage.removeItem(CACHE_TIMESTAMP)
+      localStorage.removeItem(CACHE_REGISTRY)
+      localStorage.setItem(CACHE_VERSION, CURRENT_VERSION)
+    }
+  } catch { /* ignore — private browsing or storage full */ }
+})()
 
 // ── helpers ────────────────────────────────────────────────────────────────────
 
