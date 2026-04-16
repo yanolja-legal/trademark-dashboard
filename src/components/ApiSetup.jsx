@@ -231,6 +231,22 @@ function LiveApiCard({ reg, registryStatus, euipoEnv }) {
   )
 }
 
+// ── Diagnostics row ───────────────────────────────────────────────────────────
+
+function DiagRow({ label, value, mono = false }) {
+  if (value === null || value === undefined) return null
+  const str    = String(value)
+  const isOk   = str.startsWith('success') || str === 'present'
+  const isFail = str.startsWith('failed') || str.startsWith('missing') || str.startsWith('error')
+  const color  = isOk ? 'text-green-400' : isFail ? 'text-red-400' : 'text-slate-300'
+  return (
+    <div className="flex gap-2">
+      <span className="text-slate-500 flex-shrink-0 w-44 truncate">{label}:</span>
+      <span className={`${color} ${mono ? 'break-all' : ''} leading-snug`}>{str}</span>
+    </div>
+  )
+}
+
 // ── Entity chips ─────────────────────────────────────────────────────────────
 // Renders the full subsidiary list as read-only chips.
 // Adding a new entry to SUBSIDIARIES automatically appears here.
@@ -358,6 +374,10 @@ export default function ApiSetup({ registryStatus = {}, onCsvUpload, onCsvClear 
   const [euipoTested, setEuipoTested] = useState(false)
   const [euipoEnv,    setEuipoEnv]    = useState(null)    // null | 'sandbox' | 'production'
 
+  // EUIPO diagnostics state
+  const [diagLoading, setDiagLoading] = useState(false)
+  const [diagResult,  setDiagResult]  = useState(null)    // null | { ...report }
+
   // Auto-detect EUIPO environment on mount (works even without credentials)
   useEffect(() => {
     fetch('/api/euipo-search?holder=__env_check__')
@@ -399,6 +419,20 @@ export default function ApiSetup({ registryStatus = {}, onCsvUpload, onCsvClear 
       setEuipoTest({ ok: false, label: 'Network error', detail: err.message })
     } finally {
       setEuipoTested(true)
+    }
+  }
+
+  async function runDiagnostics() {
+    setDiagLoading(true)
+    setDiagResult(null)
+    try {
+      const res  = await fetch('/api/euipo-test')
+      const json = await res.json()
+      setDiagResult(json)
+    } catch (err) {
+      setDiagResult({ error: `Network error: ${err.message}` })
+    } finally {
+      setDiagLoading(false)
     }
   }
 
@@ -504,20 +538,33 @@ export default function ApiSetup({ registryStatus = {}, onCsvUpload, onCsvClear 
           <ApiKeyInput label="Token URL" defaultValue={euipoEnv === 'production' ? 'https://auth.euipo.europa.eu/oidc/accessToken' : 'https://auth-sandbox.euipo.europa.eu/oidc/accessToken'} readOnly />
           <ApiKeyInput label="API Base"  defaultValue={euipoEnv === 'production' ? 'https://api.euipo.europa.eu/trademark-search/trademarks' : 'https://api-sandbox.euipo.europa.eu/trademark-search/trademarks'} readOnly />
 
-          {/* Test connection button */}
-          <div>
-            <button
-              onClick={testEuipo}
-              disabled={euipoTest === 'loading'}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg border text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-indigo-500/10 border-indigo-500/30 text-indigo-400 hover:bg-indigo-500/20"
-            >
-              {euipoTest === 'loading'
-                ? <><Loader2 className="w-4 h-4 animate-spin" /> Testing…</>
-                : <><Wifi className="w-4 h-4" /> Test EUIPO Connection</>
-              }
-            </button>
+          {/* Test connection + Run Diagnostics buttons */}
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={testEuipo}
+                disabled={euipoTest === 'loading'}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg border text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-indigo-500/10 border-indigo-500/30 text-indigo-400 hover:bg-indigo-500/20"
+              >
+                {euipoTest === 'loading'
+                  ? <><Loader2 className="w-4 h-4 animate-spin" /> Testing…</>
+                  : <><Wifi className="w-4 h-4" /> Test Connection</>
+                }
+              </button>
+              <button
+                onClick={runDiagnostics}
+                disabled={diagLoading}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg border text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-orange-500/10 border-orange-500/30 text-orange-400 hover:bg-orange-500/20"
+              >
+                {diagLoading
+                  ? <><Loader2 className="w-4 h-4 animate-spin" /> Running…</>
+                  : <><Zap className="w-4 h-4" /> Run Diagnostics</>
+                }
+              </button>
+            </div>
+
             {euipoTested && euipoTest && euipoTest !== 'loading' && (
-              <p className={`text-xs mt-2 flex items-center gap-1.5 ${euipoTest.ok ? 'text-green-400' : euipoTest.label === 'Pending credentials' ? 'text-indigo-400' : 'text-red-400'}`}>
+              <p className={`text-xs flex items-center gap-1.5 ${euipoTest.ok ? 'text-green-400' : euipoTest.label === 'Pending credentials' ? 'text-indigo-400' : 'text-red-400'}`}>
                 {euipoTest.ok
                   ? <Check className="w-3.5 h-3.5" />
                   : euipoTest.label === 'Pending credentials'
@@ -527,6 +574,35 @@ export default function ApiSetup({ registryStatus = {}, onCsvUpload, onCsvClear 
                 <span className="font-medium">{euipoTest.label}</span>
                 {euipoTest.detail && <span className="text-slate-500"> — {euipoTest.detail}</span>}
               </p>
+            )}
+
+            {diagResult && (
+              <div className="rounded-lg border border-navy-400 bg-navy-900/60 overflow-hidden">
+                <div className="flex items-center justify-between px-3 py-2 border-b border-navy-500 bg-navy-800/60">
+                  <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Diagnostics Report</p>
+                  <button onClick={() => setDiagResult(null)} className="text-slate-500 hover:text-slate-300 transition-colors">
+                    <XCircle className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+                <div className="p-3 space-y-1.5 font-mono text-xs">
+                  {diagResult.error ? (
+                    <p className="text-red-400">{diagResult.error}</p>
+                  ) : (
+                    <>
+                      <DiagRow label="Step 1 — Env vars"    value={diagResult.step1_env_vars} />
+                      <DiagRow label="Step 2 — Token URL"   value={diagResult.step2_token_url} mono />
+                      <DiagRow label="Step 2 — Token"       value={diagResult.step2_token} />
+                      <DiagRow label="Step 3 — Search URL"  value={diagResult.step3_search_url} mono />
+                      <DiagRow label="Step 3 — Search"      value={diagResult.step3_search} />
+                      <DiagRow label="Result count"         value={diagResult.result_count ?? '—'} />
+                      <DiagRow label="Environment"          value={diagResult.isSandbox ? 'sandbox' : 'production'} />
+                      {diagResult.timestamp && (
+                        <p className="text-slate-600 text-[10px] pt-1">{diagResult.timestamp}</p>
+                      )}
+                    </>
+                  )}
+                </div>
+              </div>
             )}
           </div>
 

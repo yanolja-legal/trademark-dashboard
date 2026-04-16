@@ -55,10 +55,13 @@ async function getToken(clientId, clientSecret, isSandbox) {
   const now = Date.now()
   const env = isSandbox ? 'sandbox' : 'production'
   if (tokenCache.token && tokenCache.expiresAt > now + 60_000 && tokenCache.env === env) {
+    console.log('[euipo-search] Step 2: Token cache hit — reusing existing token')
     return tokenCache.token
   }
 
   const tokenUrl = isSandbox ? SANDBOX_TOKEN_URL : PROD_TOKEN_URL
+  console.log('[euipo-search] Step 2: Requesting token from EUIPO')
+  console.log(`[euipo-search] Step 2: Token URL: ${tokenUrl}`)
 
   let res
   try {
@@ -73,12 +76,15 @@ async function getToken(clientId, clientSecret, isSandbox) {
       }),
     })
   } catch (networkErr) {
+    console.error(`[euipo-search] Step 2: Network error reaching token URL: ${networkErr.message}`)
     throw new Error(`OAuth2 token network error: ${networkErr.message}`)
   }
 
+  console.log(`[euipo-search] Step 2: Token response HTTP ${res.status} ${res.statusText}`)
   const rawBody = await res.text().catch(() => '(unreadable)')
 
   if (!res.ok) {
+    console.error(`[euipo-search] Step 2: Token request failed — body: ${rawBody.slice(0, 500)}`)
     throw new Error(
       `OAuth2 token error (HTTP ${res.status}) from ${tokenUrl}: ${rawBody.slice(0, 500)}`
     )
@@ -88,14 +94,17 @@ async function getToken(clientId, clientSecret, isSandbox) {
   try {
     parsed = JSON.parse(rawBody)
   } catch {
+    console.error(`[euipo-search] Step 2: Token response not JSON: ${rawBody.slice(0, 300)}`)
     throw new Error(`OAuth2 token response was not JSON: ${rawBody.slice(0, 300)}`)
   }
 
   if (!parsed.access_token) {
+    console.error(`[euipo-search] Step 2: Token response missing access_token: ${rawBody.slice(0, 300)}`)
     throw new Error(`OAuth2 token response missing access_token: ${rawBody.slice(0, 300)}`)
   }
 
   const { access_token, expires_in = 28800 } = parsed
+  console.log(`[euipo-search] Step 2: Token acquired — expires_in=${expires_in}s env=${env}`)
   tokenCache = {
     token:     access_token,
     expiresAt: now + expires_in * 1_000,
@@ -166,6 +175,9 @@ function normalise(tm) {
 // ── Low-level fetch helper ─────────────────────────────────────────────────────
 
 async function euipoFetch(url, clientId, token) {
+  console.log('[euipo-search] Step 3: Searching trademarks')
+  console.log(`[euipo-search] Step 3: Search URL: ${url}`)
+
   let res
   try {
     res = await fetch(url, {
@@ -176,29 +188,38 @@ async function euipoFetch(url, clientId, token) {
       },
     })
   } catch (networkErr) {
+    console.error(`[euipo-search] Step 3: Network error: ${networkErr.message}`)
     throw new Error(`EUIPO network error: ${networkErr.message}`)
   }
 
+  console.log(`[euipo-search] Step 3: Search response HTTP ${res.status} ${res.statusText}`)
   const rawBody = await res.text().catch(() => '(unreadable)')
 
   if (res.status === 401) {
-    // Invalidate token so next call re-authenticates
+    console.error(`[euipo-search] Step 3: 401 — body: ${rawBody.slice(0, 300)}`)
     tokenCache = { token: null, expiresAt: 0, env: null }
     throw new Error(`EUIPO 401 Unauthorized — token expired or invalid credentials`)
   }
   if (res.status === 403) {
+    console.error(`[euipo-search] Step 3: 403 — body: ${rawBody.slice(0, 300)}`)
     throw new Error(`EUIPO 403 Forbidden — not subscribed to this API plan or IP not whitelisted`)
   }
   if (res.status === 429) {
+    console.error(`[euipo-search] Step 3: 429 rate limit — body: ${rawBody.slice(0, 300)}`)
     throw new Error(`EUIPO 429 Too Many Requests — rate limit exceeded, try again later`)
   }
   if (!res.ok) {
+    console.error(`[euipo-search] Step 3: HTTP ${res.status} — body: ${rawBody.slice(0, 500)}`)
     throw new Error(`EUIPO HTTP ${res.status} from ${url}: ${rawBody.slice(0, 500)}`)
   }
 
   try {
-    return JSON.parse(rawBody)
+    const parsed = JSON.parse(rawBody)
+    const hitCount = (parsed.trademarks ?? parsed.content ?? parsed.results ?? parsed.data ?? []).length
+    console.log(`[euipo-search] Step 3: Search OK — page hits: ${hitCount}, totalElements: ${parsed.totalElements ?? '?'}`)
+    return parsed
   } catch {
+    console.error(`[euipo-search] Step 3: Response not JSON: ${rawBody.slice(0, 300)}`)
     throw new Error(`EUIPO response was not JSON: ${rawBody.slice(0, 300)}`)
   }
 }
@@ -270,9 +291,13 @@ async function fetchByNumbers(numbers, clientId, token, isSandbox) {
 // ── Handler ────────────────────────────────────────────────────────────────────
 
 export default async function handler(req, res) {
+  console.log('[euipo-search] Step 1: Reading environment variables')
   const clientId     = process.env.EUIPO_CLIENT_ID     ?? ''
   const clientSecret = process.env.EUIPO_CLIENT_SECRET ?? ''
   const isSandbox    = (process.env.EUIPO_ENV ?? 'production') === 'sandbox'
+  console.log(`[euipo-search] Step 1: EUIPO_CLIENT_ID: ${clientId ? 'present' : 'missing'}`)
+  console.log(`[euipo-search] Step 1: EUIPO_CLIENT_SECRET: ${clientSecret ? 'present' : 'missing'}`)
+  console.log(`[euipo-search] Step 1: EUIPO_ENV: ${process.env.EUIPO_ENV ?? '(unset — defaulting to production)'} → isSandbox=${isSandbox}`)
 
   const envDebug = {
     EUIPO_CLIENT_ID:     clientId     ? `set (${clientId.slice(0, 4)}…)`     : 'NOT SET',
