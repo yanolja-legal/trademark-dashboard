@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react'
-import { Key, Globe, Bell, RefreshCw, Check, Eye, EyeOff, Zap, Wifi, Building2, Loader2, CheckCircle2, XCircle, Clock, AlertCircle, Hash, Upload, Download, Trash2, Database } from 'lucide-react'
+import React, { useState, useRef, useCallback } from 'react'
+import { Key, Bell, RefreshCw, Check, Eye, EyeOff, Wifi, Building2, Loader2, XCircle, Clock, AlertCircle, Hash, Upload, Download, Trash2, Database } from 'lucide-react'
 import { format } from 'date-fns'
 import { SUBSIDIARIES } from '../subsidiaries.js'
 import { REGISTRIES }   from '../registries.js'
@@ -183,27 +183,19 @@ function ManualUploadCard({ reg, registryStatus, onCsvUpload, onCsvClear }) {
 
 // ── Live API status card ───────────────────────────────────────────────────────
 
-function LiveApiCard({ reg, registryStatus, euipoEnv }) {
+function LiveApiCard({ reg, registryStatus }) {
   const rs     = registryStatus[reg.id] ?? { status: 'idle' }
   const status = rs.status
 
   let dot, dotCls, label, labelCls
   if (status === 'ok') {
     dot = '●'; dotCls = 'text-green-400'; labelCls = 'text-green-400'
-    if (reg.id === 'euipo' && euipoEnv) {
-      label = `Connected (${euipoEnv === 'production' ? 'Production' : 'Sandbox'}) · ${rs.count} results`
-    } else {
-      label = `Connected · ${rs.count} results`
-    }
+    label = `Connected · ${rs.count} results`
   } else if (status === 'loading') {
     dot = '◌'; dotCls = 'text-accent-blue animate-pulse'; labelCls = 'text-accent-blue'; label = 'Fetching…'
   } else if (status === 'pending') {
     dot = '○'; dotCls = 'text-indigo-400'; labelCls = 'text-indigo-400'
-    if (reg.id === 'euipo' && euipoEnv) {
-      label = `Pending credentials (${euipoEnv === 'production' ? 'Production' : 'Sandbox'})`
-    } else {
-      label = reg.apiPath ? 'Pending credentials' : 'Integration pending'
-    }
+    label = reg.apiPath ? 'Pending credentials' : 'Integration pending'
   } else if (status === 'error') {
     dot = '●'; dotCls = 'text-red-400'; labelCls = 'text-red-400'; label = `Error — ${rs.error || 'fetch failed'}`
   } else if (status === 'no-marks') {
@@ -227,22 +219,6 @@ function LiveApiCard({ reg, registryStatus, euipoEnv }) {
           <p className="text-[10px] text-slate-500 mt-0.5">{new Date(rs.lastFetched).toLocaleTimeString()}</p>
         )}
       </div>
-    </div>
-  )
-}
-
-// ── Diagnostics row ───────────────────────────────────────────────────────────
-
-function DiagRow({ label, value, mono = false }) {
-  if (value === null || value === undefined) return null
-  const str    = String(value)
-  const isOk   = str.startsWith('success') || str === 'present'
-  const isFail = str.startsWith('failed') || str.startsWith('missing') || str.startsWith('error')
-  const color  = isOk ? 'text-green-400' : isFail ? 'text-red-400' : 'text-slate-300'
-  return (
-    <div className="flex gap-2">
-      <span className="text-slate-500 flex-shrink-0 w-44 truncate">{label}:</span>
-      <span className={`${color} ${mono ? 'break-all' : ''} leading-snug`}>{str}</span>
     </div>
   )
 }
@@ -369,71 +345,11 @@ export default function ApiSetup({ registryStatus = {}, onCsvUpload, onCsvClear 
   const [webhookUrl,  setWebhookUrl]  = useState('')
   const [webhookTest, setWebhookTest] = useState(null)
 
-  // EUIPO connection test state
-  const [euipoTest,   setEuipoTest]   = useState(null)    // null | 'loading' | { ok, label, detail }
-  const [euipoTested, setEuipoTested] = useState(false)
-  const [euipoEnv,    setEuipoEnv]    = useState(null)    // null | 'sandbox' | 'production'
-
-  // EUIPO diagnostics state
-  const [diagLoading, setDiagLoading] = useState(false)
-  const [diagResult,  setDiagResult]  = useState(null)    // null | { ...report }
-
-  // Auto-detect EUIPO environment on mount (works even without credentials)
-  useEffect(() => {
-    fetch('/api/euipo-search?holder=__env_check__')
-      .then(r => r.json())
-      .then(data => {
-        if (typeof data.isSandbox === 'boolean') {
-          setEuipoEnv(data.isSandbox ? 'sandbox' : 'production')
-        }
-      })
-      .catch(() => {})
-  }, [])
-
   // Default WIPO holder: first active subsidiary
   const defaultHolder = SUBSIDIARIES.find(s => s.active)?.name ?? ''
 
   function testWebhook() {
     setWebhookTest({ ok: true, time: new Date().toLocaleTimeString() })
-  }
-
-  async function testEuipo() {
-    setEuipoTest('loading')
-    setEuipoTested(false)
-    try {
-      const res  = await fetch('/api/euipo-search?holder=test')
-      const json = await res.json()
-      // Always update the env badge from whatever response we get
-      if (typeof json.isSandbox === 'boolean') {
-        setEuipoEnv(json.isSandbox ? 'sandbox' : 'production')
-      }
-      if (json.status === 'pending') {
-        setEuipoTest({ ok: false, label: 'Pending credentials', detail: json.message })
-      } else if (!res.ok) {
-        setEuipoTest({ ok: false, label: 'Connection failed', detail: json.error || `HTTP ${res.status}` })
-      } else {
-        const env = json.isSandbox ? 'Sandbox' : 'Production'
-        setEuipoTest({ ok: true, label: `Connected — ${env}`, detail: `EUIPO ${env} API is reachable` })
-      }
-    } catch (err) {
-      setEuipoTest({ ok: false, label: 'Network error', detail: err.message })
-    } finally {
-      setEuipoTested(true)
-    }
-  }
-
-  async function runDiagnostics() {
-    setDiagLoading(true)
-    setDiagResult(null)
-    try {
-      const res  = await fetch('/api/euipo-test')
-      const json = await res.json()
-      setDiagResult(json)
-    } catch (err) {
-      setDiagResult({ error: `Network error: ${err.message}` })
-    } finally {
-      setDiagLoading(false)
-    }
   }
 
   return (
@@ -461,7 +377,6 @@ export default function ApiSetup({ registryStatus = {}, onCsvUpload, onCsvClear 
               key={reg.id}
               reg={reg}
               registryStatus={registryStatus}
-              euipoEnv={euipoEnv}
             />
           ))}
         </div>
@@ -503,110 +418,6 @@ export default function ApiSetup({ registryStatus = {}, onCsvUpload, onCsvClear 
             automatically once the API key is configured.
           </div>
           <EntityChips label="Entities pending coverage" />
-        </Section>
-
-        {/* EUIPO */}
-        <Section icon={Globe} title="EUIPO" subtitle="European Union Intellectual Property Office — OAuth2 client credentials" accent="#a855f7">
-          <ApiKeyInput label="Client ID"     defaultValue="$EUIPO_CLIENT_ID"     placeholder="OAuth2 client_id"     readOnly />
-          <ApiKeyInput label="Client Secret" defaultValue="$EUIPO_CLIENT_SECRET" placeholder="OAuth2 client_secret" readOnly />
-          <div>
-            <p className="text-xs font-medium text-slate-400 mb-1.5">Environment</p>
-            <div className="flex items-center gap-2 px-3 py-2 bg-navy-700 border border-navy-500 rounded-lg">
-              <span className="font-mono text-sm text-slate-300">EUIPO_ENV</span>
-              <span className="text-slate-500 text-xs mx-1">=</span>
-              {euipoEnv === null ? (
-                <span className="font-mono text-sm text-slate-500">detecting…</span>
-              ) : euipoEnv === 'production' ? (
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-green-500/15 text-green-400 border border-green-500/30">
-                  <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-                  PRODUCTION
-                </span>
-              ) : (
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30">
-                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-                  SANDBOX
-                </span>
-              )}
-              <span className="ml-auto text-xs text-slate-500">
-                {euipoEnv === 'production'
-                  ? 'Connected to live EUIPO API'
-                  : 'Set EUIPO_ENV=production for live data'
-                }
-              </span>
-            </div>
-          </div>
-          <ApiKeyInput label="Token URL" defaultValue={euipoEnv === 'production' ? 'https://auth.euipo.europa.eu/oidc/accessToken' : 'https://auth-sandbox.euipo.europa.eu/oidc/accessToken'} readOnly />
-          <ApiKeyInput label="API Base"  defaultValue={euipoEnv === 'production' ? 'https://api.euipo.europa.eu/trademark-search/trademarks' : 'https://api-sandbox.euipo.europa.eu/trademark-search/trademarks'} readOnly />
-
-          {/* Test connection + Run Diagnostics buttons */}
-          <div className="space-y-3">
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                onClick={testEuipo}
-                disabled={euipoTest === 'loading'}
-                className="flex items-center gap-2 px-4 py-2 rounded-lg border text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-indigo-500/10 border-indigo-500/30 text-indigo-400 hover:bg-indigo-500/20"
-              >
-                {euipoTest === 'loading'
-                  ? <><Loader2 className="w-4 h-4 animate-spin" /> Testing…</>
-                  : <><Wifi className="w-4 h-4" /> Test Connection</>
-                }
-              </button>
-              <button
-                onClick={runDiagnostics}
-                disabled={diagLoading}
-                className="flex items-center gap-2 px-4 py-2 rounded-lg border text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-orange-500/10 border-orange-500/30 text-orange-400 hover:bg-orange-500/20"
-              >
-                {diagLoading
-                  ? <><Loader2 className="w-4 h-4 animate-spin" /> Running…</>
-                  : <><Zap className="w-4 h-4" /> Run Diagnostics</>
-                }
-              </button>
-            </div>
-
-            {euipoTested && euipoTest && euipoTest !== 'loading' && (
-              <p className={`text-xs flex items-center gap-1.5 ${euipoTest.ok ? 'text-green-400' : euipoTest.label === 'Pending credentials' ? 'text-indigo-400' : 'text-red-400'}`}>
-                {euipoTest.ok
-                  ? <Check className="w-3.5 h-3.5" />
-                  : euipoTest.label === 'Pending credentials'
-                    ? <span className="w-3.5 h-3.5 inline-flex items-center justify-center text-[10px]">⏳</span>
-                    : <span className="w-3.5 h-3.5 inline-flex items-center justify-center">✕</span>
-                }
-                <span className="font-medium">{euipoTest.label}</span>
-                {euipoTest.detail && <span className="text-slate-500"> — {euipoTest.detail}</span>}
-              </p>
-            )}
-
-            {diagResult && (
-              <div className="rounded-lg border border-navy-400 bg-navy-900/60 overflow-hidden">
-                <div className="flex items-center justify-between px-3 py-2 border-b border-navy-500 bg-navy-800/60">
-                  <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Diagnostics Report</p>
-                  <button onClick={() => setDiagResult(null)} className="text-slate-500 hover:text-slate-300 transition-colors">
-                    <XCircle className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-                <div className="p-3 space-y-1.5 font-mono text-xs">
-                  {diagResult.error ? (
-                    <p className="text-red-400">{diagResult.error}</p>
-                  ) : (
-                    <>
-                      <DiagRow label="Step 1 — Env vars"    value={diagResult.step1_env_vars} />
-                      <DiagRow label="Step 2 — Token URL"   value={diagResult.step2_token_url} mono />
-                      <DiagRow label="Step 2 — Token"       value={diagResult.step2_token} />
-                      <DiagRow label="Step 3 — Search URL"  value={diagResult.step3_search_url} mono />
-                      <DiagRow label="Step 3 — Search"      value={diagResult.step3_search} />
-                      <DiagRow label="Result count"         value={diagResult.result_count ?? '—'} />
-                      <DiagRow label="Environment"          value={diagResult.isSandbox ? 'sandbox' : 'production'} />
-                      {diagResult.timestamp && (
-                        <p className="text-slate-600 text-[10px] pt-1">{diagResult.timestamp}</p>
-                      )}
-                    </>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-
-          <EntityChips />
         </Section>
 
         {/* WIPO */}

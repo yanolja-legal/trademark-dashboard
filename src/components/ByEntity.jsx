@@ -28,7 +28,6 @@ const REGISTRY_COLORS = {
   'USPTO'       : 'text-sky-400    border-sky-500/30    bg-sky-500/8',
   'IP India'    : 'text-orange-400 border-orange-500/30 bg-orange-500/8',
   'ILPO'        : 'text-teal-400   border-teal-500/30   bg-teal-500/8',
-  'EUIPO'       : 'text-indigo-400 border-indigo-500/30 bg-indigo-500/8',
   'KIPRIS'      : 'text-pink-400   border-pink-500/30   bg-pink-500/8',
 }
 

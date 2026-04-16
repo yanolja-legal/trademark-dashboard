@@ -6,7 +6,7 @@
  * value         — exact `registry` string returned by the API in result records
  * fetchStrategy — 'numbers' | 'holder' | 'csv' | 'none'
  *   'numbers' → fetch by known IR/serial numbers from knownMarks.js
- *   'holder'  → search by holder/company name (EUIPO OAuth2)
+ *   'holder'  → search by holder/company name via API
  *   'csv'     → manual CSV upload in Portfolio tab; no auto-fetch
  *   'none'    → not yet implemented; shows pending in status panel
  * apiPath       — null means never auto-fetched
@@ -58,17 +58,6 @@ export const REGISTRIES = [
     requiresKey:   false,
     note:          'Manual CSV upload — download from trademarks.justice.gov.il and upload below',
     csvColumns:    ['Applicant', 'Mark Name', 'Application No.', 'Registration No.', 'NCL Class', 'Filed Date', 'Registration Date', 'Expiry Date', 'Status'],
-  },
-  {
-    id:            'euipo',
-    label:         'EUIPO',
-    value:         'EUIPO',
-    fetchStrategy: 'holder',
-    apiPath:       '/api/euipo-search',
-    queryParam:    'holder',
-    knownMarksKey: 'euipo',
-    requiresKey:   true,
-    note:          'OAuth2 client credentials — set EUIPO_CLIENT_ID + EUIPO_CLIENT_SECRET',
   },
   {
     id:            'kipris',

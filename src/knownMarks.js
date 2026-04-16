@@ -10,9 +10,6 @@
  *           Fetch via: https://tsdrapi.uspto.gov/ts/cd/casestatus/sn{SERIAL}/info.xml
  *           Requires USPTO_API_KEY env var (free at developer.uspto.gov)
  *
- * euipo  — EUIPO application numbers, e.g. ["018756432"]
- *           Fetched automatically via OAuth2 holder-name search if EUIPO_CLIENT_ID is set
- *
  * ipindia — IP India application numbers
  *           Loaded via manual CSV upload in the Portfolio tab
  *
@@ -27,7 +24,6 @@ export const KNOWN_MARKS = {
   "Yanolja Co., Ltd.": {
     wipo:    [],
     uspto:   [],
-    euipo:   [],
     ipindia: [],
     ilpo:    [],
     kipris:  [],
@@ -35,7 +31,6 @@ export const KNOWN_MARKS = {
   "Yanolja Cloud Pte. Ltd.": {
     wipo:    [],
     uspto:   [],
-    euipo:   [],
     ipindia: [],
     ilpo:    [],
     kipris:  [],
@@ -43,7 +38,6 @@ export const KNOWN_MARKS = {
   "Go Global Travel Ltd.": {
     wipo:    [],
     uspto:   [],
-    euipo:   [],
     ipindia: [],
     ilpo:    [],
     kipris:  [],
@@ -51,7 +45,6 @@ export const KNOWN_MARKS = {
   "Yanolja Cloud Solution PVT Ltd.": {
     wipo:    [],
     uspto:   [],
-    euipo:   [],
     ipindia: [],
     ilpo:    [],
     kipris:  [],
@@ -59,7 +52,6 @@ export const KNOWN_MARKS = {
   "Nol Universe Co., Ltd.": {
     wipo:    [],
     uspto:   [],
-    euipo:   [],
     ipindia: [],
     ilpo:    [],
     kipris:  [],
@@ -67,7 +59,6 @@ export const KNOWN_MARKS = {
   "MST TRAVEL LTD.": {
     wipo:    [],
     uspto:   [],
-    euipo:   [],
     ipindia: [],
     ilpo:    [],
     kipris:  [],
@@ -75,7 +66,6 @@ export const KNOWN_MARKS = {
   "RightRez, Inc.": {
     wipo:    [],
     uspto:   [],
-    euipo:   [],
     ipindia: [],
     ilpo:    [],
     kipris:  [],
@@ -83,7 +73,6 @@ export const KNOWN_MARKS = {
   "Innsoft, Inc.": {
     wipo:    [],
     uspto:   [],
-    euipo:   [],
     ipindia: [],
     ilpo:    [],
     kipris:  [],

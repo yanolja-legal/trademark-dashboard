@@ -21,7 +21,6 @@ const REGISTRY_STYLES = {
   'USPTO'       : 'bg-sky-500/10 text-sky-400 border-sky-500/20',
   'IP India'    : 'bg-orange-500/10 text-orange-400 border-orange-500/20',
   'ILPO'        : 'bg-teal-500/10 text-teal-400 border-teal-500/20',
-  'EUIPO'       : 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20',
   'KIPRIS'      : 'bg-pink-500/10 text-pink-400 border-pink-500/20',
 }
 const REGISTRY_DEFAULT = 'bg-accent-blue/10 text-accent-blue border-accent-blue/20'
