@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Key, Globe, Bell, RefreshCw, Check, Eye, EyeOff, Zap, Wifi, Building2, Loader2, CheckCircle2, XCircle, Clock, AlertCircle, Hash } from 'lucide-react'
 import { SUBSIDIARIES } from '../subsidiaries.js'
 import { REGISTRIES }   from '../registries.js'
@@ -129,6 +129,19 @@ export default function ApiSetup({ registryStatus = {} }) {
   // EUIPO connection test state
   const [euipoTest,   setEuipoTest]   = useState(null)    // null | 'loading' | { ok, label, detail }
   const [euipoTested, setEuipoTested] = useState(false)
+  const [euipoEnv,    setEuipoEnv]    = useState(null)    // null | 'sandbox' | 'production'
+
+  // Auto-detect EUIPO environment on mount (works even without credentials)
+  useEffect(() => {
+    fetch('/api/euipo-search?holder=__env_check__')
+      .then(r => r.json())
+      .then(data => {
+        if (typeof data.isSandbox === 'boolean') {
+          setEuipoEnv(data.isSandbox ? 'sandbox' : 'production')
+        }
+      })
+      .catch(() => {})
+  }, [])
 
   // Default WIPO holder: first active subsidiary
   const defaultHolder = SUBSIDIARIES.find(s => s.active)?.name ?? ''
@@ -141,16 +154,19 @@ export default function ApiSetup({ registryStatus = {} }) {
     setEuipoTest('loading')
     setEuipoTested(false)
     try {
-      // Use a minimal holder query — if pending, credentials are missing; if error, auth failed
       const res  = await fetch('/api/euipo-search?holder=test')
       const json = await res.json()
+      // Always update the env badge from whatever response we get
+      if (typeof json.isSandbox === 'boolean') {
+        setEuipoEnv(json.isSandbox ? 'sandbox' : 'production')
+      }
       if (json.status === 'pending') {
         setEuipoTest({ ok: false, label: 'Pending credentials', detail: json.message })
       } else if (!res.ok) {
         setEuipoTest({ ok: false, label: 'Connection failed', detail: json.error || `HTTP ${res.status}` })
       } else {
         const env = json.isSandbox ? 'Sandbox' : 'Production'
-        setEuipoTest({ ok: true, label: `Connected (${env})`, detail: `EUIPO ${env} API is reachable` })
+        setEuipoTest({ ok: true, label: `Connected — ${env}`, detail: `EUIPO ${env} API is reachable` })
       }
     } catch (err) {
       setEuipoTest({ ok: false, label: 'Network error', detail: err.message })
@@ -271,12 +287,29 @@ export default function ApiSetup({ registryStatus = {} }) {
             <div className="flex items-center gap-2 px-3 py-2 bg-navy-700 border border-navy-500 rounded-lg">
               <span className="font-mono text-sm text-slate-300">EUIPO_ENV</span>
               <span className="text-slate-500 text-xs mx-1">=</span>
-              <span className="font-mono text-sm text-indigo-400">sandbox</span>
-              <span className="ml-auto text-xs text-slate-500">set to <code className="text-indigo-400">production</code> to use live API</span>
+              {euipoEnv === null ? (
+                <span className="font-mono text-sm text-slate-500">detecting…</span>
+              ) : euipoEnv === 'production' ? (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-green-500/15 text-green-400 border border-green-500/30">
+                  <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+                  PRODUCTION
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                  SANDBOX
+                </span>
+              )}
+              <span className="ml-auto text-xs text-slate-500">
+                {euipoEnv === 'production'
+                  ? 'Connected to live EUIPO API'
+                  : 'Set EUIPO_ENV=production for live data'
+                }
+              </span>
             </div>
           </div>
-          <ApiKeyInput label="Token URL" defaultValue="https://euipo.europa.eu/idm2/oauth/token" readOnly />
-          <ApiKeyInput label="API Base"  defaultValue="https://euipo.europa.eu/copla/trademark/data/v1" readOnly />
+          <ApiKeyInput label="Token URL" defaultValue={euipoEnv === 'production' ? 'https://auth.euipo.europa.eu/oidc/accessToken' : 'https://auth-sandbox.euipo.europa.eu/oidc/accessToken'} readOnly />
+          <ApiKeyInput label="API Base"  defaultValue={euipoEnv === 'production' ? 'https://api.euipo.europa.eu/trademark-search/trademarks' : 'https://api-sandbox.euipo.europa.eu/trademark-search/trademarks'} readOnly />
 
           {/* Test connection button */}
           <div>

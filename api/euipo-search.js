@@ -101,7 +101,7 @@ function extractNcl(tm) {
   return raw.map(c => (typeof c === 'object' ? c.classNumber ?? c.number ?? c : c)).join(', ')
 }
 
-function normalise(tm, isSandbox) {
+function normalise(tm) {
   const appNo = tm.applicationNumber || tm.applicationNum || tm.trademarkId || ''
   const regNo = tm.registrationNumber || tm.registrationNum || ''
 
@@ -134,8 +134,35 @@ function normalise(tm, isSandbox) {
     registrationDate: (tm.registrationDate || '').slice(0, 10),
     expiryDate:       (tm.expiryDate       || '').slice(0, 10),
     status:           mapStatus(tm.trademarkStatus ?? tm.status ?? tm.markStatus),
-    isSandbox,
   }
+}
+
+// ── holder name filtering ──────────────────────────────────────────────────────
+
+/**
+ * Strip common corporate designators to get the distinctive company name.
+ * e.g. "Yanolja Co., Ltd." → "yanolja"
+ *      "Go Global Travel Ltd." → "go global travel"
+ */
+function extractKeyword(companyName) {
+  return companyName
+    .replace(/\b(co\.|co|ltd\.?|limited|inc\.?|incorporated|pte\.?|pvt\.?|llc|l\.l\.c\.?|corp\.?|corporation|company|s\.a\.|b\.v\.|gmbh|ag|plc)\b\.?/gi, ' ')
+    .replace(/[,\.\s]+/g, ' ')
+    .trim()
+    .toLowerCase()
+}
+
+/**
+ * Returns true when every significant word from the search query
+ * appears (case-insensitively) in the applicant/holder name returned
+ * by the API — preventing unrelated results from leaking through.
+ */
+function holderMatchesQuery(applicant, searchQuery) {
+  const keyword = extractKeyword(searchQuery)
+  const target  = (applicant || '').toLowerCase()
+  const words   = keyword.split(/\s+/).filter(w => w.length >= 2)
+  if (words.length === 0) return true   // nothing to filter on — keep
+  return words.every(w => target.includes(w))
 }
 
 // ── API search helper ──────────────────────────────────────────────────────────
@@ -185,14 +212,16 @@ async function searchByHolder(holder, clientId, token, isSandbox) {
     )
 
     const hits = data.trademarks ?? data.results ?? data.data ?? []
-    hits.forEach(tm => results.push(normalise(tm, isSandbox)))
+    hits.forEach(tm => results.push(normalise(tm)))
 
     const total = data.totalResults ?? data.total ?? data.count ?? hits.length
     if (results.length >= total || hits.length < PAGE_SIZE) break
     start += PAGE_SIZE
   }
 
-  return results
+  // Strict filter: only keep records whose holder name actually matches
+  // the subsidiary we searched for, preventing unrelated results
+  return results.filter(r => holderMatchesQuery(r.applicant, holder))
 }
 
 async function fetchByNumbers(numbers, clientId, token, isSandbox) {
@@ -204,7 +233,7 @@ async function fetchByNumbers(numbers, clientId, token, isSandbox) {
         clientId, token, isSandbox
       )
       const hits = data.trademarks ?? data.results ?? data.data ?? []
-      hits.forEach(tm => results.push(normalise(tm, isSandbox)))
+      hits.forEach(tm => results.push(normalise(tm)))
     } catch {
       // individual lookup failure — skip and continue
     }
@@ -232,9 +261,10 @@ export default async function handler(req, res) {
   // No credentials → pending state (renders as blue info badge in dashboard)
   if (!clientId || !clientSecret) {
     return res.status(200).json({
-      status:  'pending',
-      message: 'EUIPO credentials not configured. Add EUIPO_CLIENT_ID and EUIPO_CLIENT_SECRET to environment variables.',
-      debug:   envDebug,
+      status:   'pending',
+      isSandbox,
+      message:  'EUIPO credentials not configured. Add EUIPO_CLIENT_ID and EUIPO_CLIENT_SECRET to environment variables.',
+      debug:    envDebug,
     })
   }
 

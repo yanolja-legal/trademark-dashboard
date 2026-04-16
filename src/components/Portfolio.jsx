@@ -745,11 +745,6 @@ export default function Portfolio({ data, registryStatus = {}, progress, lastUpd
                           MANUAL UPLOAD
                         </span>
                       )}
-                      {tm.isSandbox && (
-                        <span className="px-1.5 py-0 rounded text-[9px] font-bold border bg-amber-500/10 text-amber-400 border-amber-500/25 tracking-wide">
-                          SANDBOX
-                        </span>
-                      )}
                     </div>
                   </td>
 
