@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef, useCallback } from 'react'
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { Shield, Bell, BarChart2, Settings, Database, RefreshCw, Building2 } from 'lucide-react'
 import { differenceInDays, parseISO, format, isValid } from 'date-fns'
 import Portfolio  from './components/Portfolio'
@@ -28,6 +28,8 @@ const CACHE_RESULTS   = 'tm-cache-results'
 const CACHE_TIMESTAMP = 'tm-cache-timestamp'
 const CACHE_REGISTRY  = 'tm-cache-registry-status'
 const CACHE_VERSION   = 'tm-cache-version'
+const CACHE_CSV_RESULTS = 'tm-csv-results'
+const CACHE_CSV_UPLOADS = 'tm-csv-uploads'
 const CURRENT_VERSION = '2'   // bump this to invalidate all clients' cached data
 
 // Clear stale cache from before sample data was removed
@@ -81,7 +83,12 @@ export default function App() {
   const [liveResults,    setLiveResults]    = useState(() => {
     try { const c = localStorage.getItem(CACHE_RESULTS);   return c ? JSON.parse(c) : [] } catch { return [] }
   })
-  const [csvResults,     setCsvResults]     = useState([]) // IP India + ILPO uploaded CSVs
+  const [csvResults,     setCsvResults]     = useState(() => {
+    try { const c = localStorage.getItem(CACHE_CSV_RESULTS); return c ? JSON.parse(c) : [] } catch { return [] }
+  })
+  const [csvUploads,     setCsvUploads]     = useState(() => {
+    try { const c = localStorage.getItem(CACHE_CSV_UPLOADS); return c ? JSON.parse(c) : [] } catch { return [] }
+  })
   const [registryStatus, setRegistryStatus] = useState(() => {
     try { const c = localStorage.getItem(CACHE_REGISTRY);  return c ? JSON.parse(c) : INITIAL_STATUS } catch { return INITIAL_STATUS }
   })
@@ -91,6 +98,14 @@ export default function App() {
   const [progress,       setProgress]       = useState(null) // { current, total, msg } | null
   const fetchCountRef  = useRef(0)
   const isFetchingRef  = useRef(false)
+
+  // Persist CSV data to localStorage whenever it changes
+  useEffect(() => {
+    try { localStorage.setItem(CACHE_CSV_RESULTS, JSON.stringify(csvResults)) } catch {}
+  }, [csvResults])
+  useEffect(() => {
+    try { localStorage.setItem(CACHE_CSV_UPLOADS, JSON.stringify(csvUploads)) } catch {}
+  }, [csvUploads])
 
   // ── Combined deduped data ──────────────────────────────────────────────────
 
@@ -104,34 +119,24 @@ export default function App() {
     })
   }, [liveResults, csvResults])
 
-  // ── CSV upload handler (IP India / ILPO) ──────────────────────────────────
+  // ── CSV upload handler (universal — any country / registry) ──────────────
 
-  const handleCsvUpload = useCallback((registryId, rows) => {
+  const handleCsvUpload = useCallback((upload, rows) => {
+    // upload = { id, label, filename }
+    // If same label is re-uploaded, replace the previous upload for that label.
+    setCsvUploads(prev => {
+      const filtered = prev.filter(u => u.label !== upload.label)
+      return [...filtered, { ...upload, count: rows.length, uploadedAt: new Date().toISOString() }]
+    })
     setCsvResults(prev => {
-      const reg = REGISTRIES.find(r => r.id === registryId)
-      // Remove old rows for this registry, then append new ones
-      const filtered = prev.filter(r => r.registry !== reg?.value)
+      const filtered = prev.filter(r => r.uploadLabel !== upload.label)
       return [...filtered, ...rows]
     })
-    setRegistryStatus(prev => ({
-      ...prev,
-      [registryId]: {
-        ...prev[registryId],
-        status:      'ok',
-        count:       rows.length,
-        error:       null,
-        lastFetched: new Date().toISOString(),
-      },
-    }))
   }, [])
 
-  const handleCsvClear = useCallback((registryId) => {
-    const reg = REGISTRIES.find(r => r.id === registryId)
-    setCsvResults(prev => prev.filter(r => r.registry !== reg?.value))
-    setRegistryStatus(prev => ({
-      ...prev,
-      [registryId]: { status: 'csv', count: 0, error: null, lastFetched: null },
-    }))
+  const handleCsvClear = useCallback((uploadId) => {
+    setCsvUploads(prev => prev.filter(u => u.id !== uploadId))
+    setCsvResults(prev => prev.filter(r => r.uploadId !== uploadId))
   }, [])
 
   // ── Fetch all registries sequentially (one entity at a time) ─────────────────
@@ -456,6 +461,7 @@ export default function App() {
         {activeTab === 'api'       && (
           <ApiSetup
             registryStatus={registryStatus}
+            csvUploads={csvUploads}
             onCsvUpload={handleCsvUpload}
             onCsvClear={handleCsvClear}
           />

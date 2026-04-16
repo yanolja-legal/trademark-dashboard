@@ -1,11 +1,11 @@
-import React, { useState, useRef, useCallback } from 'react'
-import { Key, Bell, RefreshCw, Check, Eye, EyeOff, Wifi, Building2, Loader2, XCircle, Clock, AlertCircle, Hash, Upload, Download, Trash2, Database } from 'lucide-react'
+import React, { useState, useRef } from 'react'
+import { Key, Bell, RefreshCw, Check, Eye, EyeOff, Wifi, Building2, XCircle, Clock, AlertCircle, Hash, Upload, Download, Trash2, Database, Plus, Zap, FileText } from 'lucide-react'
 import { format } from 'date-fns'
 import { SUBSIDIARIES } from '../subsidiaries.js'
 import { REGISTRIES }   from '../registries.js'
 import { KNOWN_MARKS }  from '../knownMarks.js'
 
-// ── CSV helpers (moved from Portfolio) ───────────────────────────────────────
+// ── CSV helpers ───────────────────────────────────────────────────────────────
 
 function parseCsv(text) {
   const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n').filter(l => l.trim())
@@ -34,154 +34,83 @@ function parseCsv(text) {
   })
 }
 
-function normaliseCsvRow(row, reg, idx) {
+// Universal normalisation — reads Country of Filing and Registry from CSV columns.
+// Falls back to uploadMeta.label if those columns are blank.
+function normaliseCsvRow(row, uploadMeta, idx) {
   const get = (...keys) => { for (const k of keys) { const v = row[k] || ''; if (v) return v } return '' }
-  const applicant        = get('applicant', 'applicant_name', 'owner')
+  const applicant        = get('applicant')
   const markName         = get('mark_name', 'trademark_name', 'trademark', 'mark', 'brand')
-  const appNo            = get('application_no_', 'application_no', 'application_number', 'app_no', 'serial_no', 'serial_number')
-  const regNo            = get('registration_no_', 'registration_no', 'registration_number', 'reg_no')
-  const ncl              = get('ncl_class', 'ncl', 'class', 'nice_class', 'classes', 'code')
-  const applicationDate  = get('filed_date', 'filing_date', 'application_date', 'filed')
-  const registrationDate = get('registration_date', 'registered', 'registration_date_')
-  const expiryDate       = get('expiry_date', 'expiry_date_', 'expiry', 'valid_until', 'renewal_date')
-  const rawStatus        = get('status', 'trademark_status', 'mark_status')
+  const appNo            = get('application_no_', 'application_no', 'serial_no', 'serial_number', 'app_no')
+  const regNo            = get('registration_no_', 'registration_no', 'reg_no')
+  const kindOfMark       = get('kind_of_mark', 'kind', 'mark_type')
+  const ncl              = get('ncl_class', 'ncl', 'class', 'nice_class')
+  const country          = get('country_of_filing', 'country') || uploadMeta.label
+  const registry         = get('registry') || uploadMeta.label
+  const applicationDate  = get('filed_date', 'filing_date', 'application_date')
+  const publicationDate  = get('publication_date', 'pub_date')
+  const registrationDate = get('registration_date', 'registered')
+  const expiryDate       = get('expiry_date', 'expiry', 'valid_until', 'renewal_date')
+  const rawStatus        = get('current_status', 'status', 'trademark_status')
   const s = (rawStatus || '').toLowerCase()
   let status = 'Unknown'
-  if (s.includes('registered') || s.includes('active'))                     status = 'Active'
-  else if (s.includes('pending') || s.includes('filed') || s.includes('object')) status = 'Pending'
-  else if (s.includes('expir'))                                               status = 'Expired'
-  else if (s.includes('oppos') || s.includes('refus'))                       status = 'Opposed'
+  if (s.includes('registered') || s.includes('active'))                           status = 'Active'
+  else if (s.includes('pending') || s.includes('filed') || s.includes('object'))  status = 'Pending'
+  else if (s.includes('expir'))                                                    status = 'Expired'
+  else if (s.includes('oppos') || s.includes('refus'))                            status = 'Opposed'
   else if (rawStatus) status = rawStatus.charAt(0).toUpperCase() + rawStatus.slice(1).toLowerCase()
   return {
-    id: `${reg.id}-csv-${appNo || idx}`,
-    registry: reg.value,
-    country: reg.id === 'ipindia' ? 'India' : reg.id === 'ilpo' ? 'Israel' : reg.label,
-    applicant, markName: markName || '—', serialNo: appNo, regNo,
-    kindOfMark: '—', ncl, applicationDate, registrationDate, expiryDate, status, source: 'csv',
+    id:               `csv-${uploadMeta.id}-${appNo || idx}`,
+    uploadId:         uploadMeta.id,
+    uploadLabel:      uploadMeta.label,
+    registry,
+    country,
+    applicant,
+    markName:         markName || '—',
+    serialNo:         appNo,
+    regNo,
+    kindOfMark:       kindOfMark || '—',
+    ncl,
+    applicationDate,
+    publicationDate,
+    registrationDate,
+    expiryDate,
+    status,
+    source:           'csv',
   }
 }
 
-function downloadCsvTemplate(reg) {
-  const headers = reg.csvColumns ?? ['Applicant', 'Mark Name', 'Application No.', 'Registration No.', 'NCL Class', 'Filed Date', 'Registration Date', 'Expiry Date', 'Status']
-  const example = reg.id === 'ipindia'
-    ? ['Yanolja Co., Ltd.', 'YANOLJA', '1234567', '987654', '43', '2020-01-15', '2022-03-10', '2032-03-10', 'Registered']
-    : ['Yanolja Co., Ltd.', 'YANOLJA', '1234567', '987654', '43', '2020-01-15', '2022-03-10', '2032-03-10', 'Registered']
-  const csv = [headers.join(','), example.join(',')].join('\n')
+// Download a pre-formatted 13-column template with 2 example rows.
+function downloadCsvTemplate() {
+  const headers = [
+    'Applicant', 'Mark Name', 'Application No.', 'Registration No.', 'Kind of Mark',
+    'NCL Class', 'Country of Filing', 'Registry', 'Filed Date', 'Publication Date',
+    'Registration Date', 'Expiry Date', 'Current Status',
+  ]
+  const ex1 = [
+    'Yanolja Co., Ltd.', 'YANOLJA', 'APP-2022-001234', 'REG-2023-005678', 'Word',
+    '9, 42', 'India', 'IP India', '2022-03-15', '2022-09-20',
+    '2023-01-10', '2033-01-10', 'Active',
+  ]
+  const ex2 = [
+    'Yanolja Co., Ltd.', 'YANOLJA & Device', 'APP-2022-001235', '', 'Device',
+    '9, 35, 42', 'India', 'IP India', '2022-06-20', '',
+    '', '', 'Pending',
+  ]
+  const csv  = [headers, ex1, ex2].map(row => row.map(v => `"${v}"`).join(',')).join('\n')
   const blob = new Blob([csv], { type: 'text/csv' })
   const url  = URL.createObjectURL(blob)
   const a    = document.createElement('a')
   a.href     = url
-  a.download = `${reg.id}-template.csv`
+  a.download = 'trademark_upload_template.csv'
   a.click()
   URL.revokeObjectURL(url)
 }
 
-// ── Manual upload card ────────────────────────────────────────────────────────
-
-function ManualUploadCard({ reg, registryStatus, onCsvUpload, onCsvClear }) {
-  const inputRef             = useRef(null)
-  const [error,   setError]  = useState(null)
-  const [isDragging, setDrag] = useState(false)
-
-  const rs      = registryStatus[reg.id] ?? {}
-  const hasData = rs.count > 0
-
-  const processFile = useCallback(file => {
-    setError(null)
-    if (!file) return
-    if (!file.name.endsWith('.csv') && file.type !== 'text/csv') {
-      setError('Please upload a .csv file'); return
-    }
-    const reader = new FileReader()
-    reader.onload = e => {
-      try {
-        const rows  = parseCsv(e.target.result)
-        if (rows.length === 0) { setError('CSV file appears to be empty or invalid'); return }
-        const marks = rows.map((row, i) => normaliseCsvRow(row, reg, i)).filter(m => m.applicant || m.markName !== '—')
-        if (marks.length === 0) { setError('No valid trademark rows found in CSV'); return }
-        onCsvUpload(reg.id, marks)
-      } catch (err) { setError(`Parse error: ${err.message}`) }
-    }
-    reader.onerror = () => setError('Failed to read file')
-    reader.readAsText(file)
-  }, [reg, onCsvUpload])
-
-  const sourceUrl = reg.id === 'ipindia' ? 'ipindia.gov.in' : 'trademarks.justice.gov.il'
-
-  return (
-    <div className="bg-navy-800 border border-navy-500 rounded-xl overflow-hidden">
-      {/* card header */}
-      <div className="flex items-center justify-between px-5 py-3.5 border-b border-navy-500 bg-teal-500/5">
-        <div className="flex items-center gap-2.5">
-          <div className="p-1.5 rounded-lg bg-teal-500/15 border border-teal-500/25">
-            <Upload className="w-3.5 h-3.5 text-teal-400" />
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-white">{reg.label}</p>
-            <p className="text-[11px] text-slate-500">Manual CSV upload · <span className="font-mono">{sourceUrl}</span></p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          {hasData ? (
-            <>
-              <span className="text-xs text-green-400 font-medium">{rs.count} marks</span>
-              {rs.lastFetched && (
-                <span className="text-[10px] text-slate-500">{format(new Date(rs.lastFetched), 'dd MMM yyyy')}</span>
-              )}
-              <button
-                onClick={() => { onCsvClear(reg.id); setError(null) }}
-                title="Clear uploaded data"
-                className="p-1 rounded text-slate-500 hover:text-red-400 transition-colors"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-              </button>
-            </>
-          ) : (
-            <span className="text-[11px] text-slate-500 italic">No data</span>
-          )}
-        </div>
-      </div>
-
-      {/* drop zone + actions */}
-      <div className="p-4 space-y-3">
-        <div
-          onDragOver={e => { e.preventDefault(); setDrag(true) }}
-          onDragLeave={() => setDrag(false)}
-          onDrop={e => { e.preventDefault(); setDrag(false); processFile(e.dataTransfer.files[0]) }}
-          onClick={() => inputRef.current?.click()}
-          className={`border-2 border-dashed rounded-lg px-4 py-3.5 text-center cursor-pointer transition-colors
-            ${isDragging ? 'border-accent-blue bg-accent-blue/5' : 'border-navy-400 hover:border-navy-300'}`}
-        >
-          <Upload className="w-4 h-4 text-slate-400 mx-auto mb-1" />
-          <p className="text-xs text-slate-300">
-            {hasData ? 'Drop a new CSV to replace, or click to browse' : 'Drop CSV here or click to browse'}
-          </p>
-          <p className="text-[10px] text-slate-600 mt-0.5 font-mono">
-            {reg.csvColumns?.join(' · ')}
-          </p>
-          <input ref={inputRef} type="file" accept=".csv,text/csv" className="hidden"
-            onChange={e => processFile(e.target.files?.[0])} />
-        </div>
-
-        <button
-          onClick={() => downloadCsvTemplate(reg)}
-          className="flex items-center gap-1.5 text-xs text-accent-blue hover:text-accent-blue-bright transition-colors"
-        >
-          <Download className="w-3.5 h-3.5" />
-          Download CSV template
-        </button>
-
-        {error && (
-          <p className="text-xs text-red-400 flex items-center gap-1">
-            <XCircle className="w-3.5 h-3.5 flex-shrink-0" />{error}
-          </p>
-        )}
-      </div>
-    </div>
-  )
+function generateId() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 7)
 }
 
-// ── Live API status card ───────────────────────────────────────────────────────
+// ── Live API status row ───────────────────────────────────────────────────────
 
 function LiveApiCard({ reg, registryStatus }) {
   const rs     = registryStatus[reg.id] ?? { status: 'idle' }
@@ -223,9 +152,176 @@ function LiveApiCard({ reg, registryStatus }) {
   )
 }
 
-// ── Entity chips ─────────────────────────────────────────────────────────────
-// Renders the full subsidiary list as read-only chips.
-// Adding a new entry to SUBSIDIARIES automatically appears here.
+// ── Upload Manager ────────────────────────────────────────────────────────────
+
+function UploadManager({ csvUploads, onCsvUpload, onCsvClear }) {
+  const [showForm,   setShowForm]   = useState(false)
+  const [label,      setLabel]      = useState('')
+  const [file,       setFile]       = useState(null)
+  const [error,      setError]      = useState(null)
+  const [processing, setProcessing] = useState(false)
+  const fileRef = useRef(null)
+
+  function reset() {
+    setShowForm(false); setLabel(''); setFile(null); setError(null); setProcessing(false)
+    if (fileRef.current) fileRef.current.value = ''
+  }
+
+  function handleUpload() {
+    if (!label.trim()) { setError('Please enter a Country / Registry name'); return }
+    if (!file)          { setError('Please select a file'); return }
+    setProcessing(true); setError(null)
+
+    const uploadMeta = { id: generateId(), label: label.trim(), filename: file.name }
+
+    const finish = (rows) => {
+      if (!rows.length) {
+        setError('File appears empty or unparseable — check that it has at least one data row')
+        setProcessing(false); return
+      }
+      const marks = rows.map((r, i) => normaliseCsvRow(r, uploadMeta, i))
+                        .filter(m => m.applicant || m.markName !== '—')
+      if (!marks.length) {
+        setError('No valid trademark rows found — column headers must match the template (download it above)')
+        setProcessing(false); return
+      }
+      onCsvUpload(uploadMeta, marks)
+      reset()
+    }
+
+    if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
+      file.arrayBuffer().then(async buf => {
+        try {
+          const XLSX = await import('xlsx')
+          const wb   = XLSX.read(buf, { type: 'array' })
+          const ws   = wb.Sheets[wb.SheetNames[0]]
+          finish(parseCsv(XLSX.utils.sheet_to_csv(ws)))
+        } catch {
+          setError('XLSX parse failed — export as CSV from Excel (File → Save As → CSV) and re-upload')
+          setProcessing(false)
+        }
+      }).catch(() => { setError('Failed to read file'); setProcessing(false) })
+    } else {
+      const reader = new FileReader()
+      reader.onload  = e => {
+        try { finish(parseCsv(e.target.result)) }
+        catch (err) { setError(`Parse error: ${err.message}`); setProcessing(false) }
+      }
+      reader.onerror = () => { setError('Failed to read file'); setProcessing(false) }
+      reader.readAsText(file)
+    }
+  }
+
+  return (
+    <div className="space-y-3">
+
+      {/* Uploaded files list */}
+      {csvUploads.length > 0 && (
+        <div className="rounded-lg border border-navy-500 overflow-hidden divide-y divide-navy-600/40">
+          {csvUploads.map(u => (
+            <div key={u.id} className="flex items-center gap-3 px-4 py-3 bg-navy-700/30 hover:bg-navy-700/50 transition-colors">
+              <FileText className="w-4 h-4 text-teal-400 flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-white truncate">{u.label}</p>
+                <p className="text-xs text-slate-500 truncate">
+                  {u.filename} · {u.count} record{u.count !== 1 ? 's' : ''} · uploaded {format(new Date(u.uploadedAt), 'dd MMM yyyy HH:mm')}
+                </p>
+              </div>
+              <button
+                onClick={() => onCsvClear(u.id)}
+                title="Remove this upload"
+                className="p-1.5 rounded text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-colors flex-shrink-0"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {csvUploads.length === 0 && !showForm && (
+        <p className="text-xs text-slate-500 italic py-1">No files uploaded yet.</p>
+      )}
+
+      {/* Add New Upload inline form */}
+      {showForm && (
+        <div className="rounded-lg border border-navy-400 bg-navy-700/30 p-4 space-y-3">
+          <p className="text-sm font-semibold text-white">Add New Upload</p>
+
+          <div>
+            <label className="block text-xs font-medium text-slate-400 mb-1.5">Country / Registry name</label>
+            <input
+              type="text"
+              value={label}
+              onChange={e => setLabel(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleUpload()}
+              placeholder='e.g. "India — IP India" · "Israel — ILPO" · "China — CNIPA" · "Japan — JPO"'
+              className="w-full px-3 py-2.5 bg-navy-700 border border-navy-500 rounded-lg text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-accent-blue/50 transition-colors"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-slate-400 mb-1.5">File (.csv or .xlsx)</label>
+            <div
+              onClick={() => fileRef.current?.click()}
+              className="border-2 border-dashed border-navy-400 hover:border-navy-300 rounded-lg px-4 py-3 text-center cursor-pointer transition-colors"
+            >
+              {file
+                ? <p className="text-sm text-slate-200 font-medium">{file.name}</p>
+                : (
+                  <>
+                    <Upload className="w-4 h-4 text-slate-500 mx-auto mb-1" />
+                    <p className="text-xs text-slate-400">Click to select a .csv or .xlsx file</p>
+                  </>
+                )
+              }
+              <input
+                ref={fileRef} type="file" accept=".csv,.xlsx,text/csv" className="hidden"
+                onChange={e => { setError(null); setFile(e.target.files?.[0] || null) }}
+              />
+            </div>
+          </div>
+
+          {error && (
+            <p className="text-xs text-red-400 flex items-center gap-1">
+              <XCircle className="w-3.5 h-3.5 flex-shrink-0" />{error}
+            </p>
+          )}
+
+          <div className="flex items-center gap-2 pt-1">
+            <button
+              onClick={handleUpload}
+              disabled={processing}
+              className="flex items-center gap-1.5 px-4 py-2 bg-teal-500/10 border border-teal-500/30 text-teal-400 rounded-lg text-sm hover:bg-teal-500/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              <Upload className="w-3.5 h-3.5" />
+              {processing ? 'Processing…' : 'Upload'}
+            </button>
+            <button
+              onClick={reset}
+              className="px-4 py-2 bg-navy-700 border border-navy-500 text-slate-400 rounded-lg text-sm hover:text-slate-200 transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Bottom actions */}
+      {!showForm && (
+        <button
+          onClick={() => setShowForm(true)}
+          className="flex items-center gap-1.5 px-3 py-2 bg-teal-500/10 border border-teal-500/30 text-teal-400 rounded-lg text-sm hover:bg-teal-500/20 transition-colors"
+        >
+          <Plus className="w-3.5 h-3.5" />
+          Add New Upload
+        </button>
+      )}
+    </div>
+  )
+}
+
+// ── Entity chips ──────────────────────────────────────────────────────────────
 
 function EntityChips({ label = 'Covered entities' }) {
   const active = SUBSIDIARIES.filter(s => s.active)
@@ -338,14 +434,13 @@ function Toggle({ label, description, defaultChecked = false }) {
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function ApiSetup({ registryStatus = {}, onCsvUpload, onCsvClear }) {
+export default function ApiSetup({ registryStatus = {}, csvUploads = [], onCsvUpload, onCsvClear }) {
   const [syncFreq,    setSyncFreq]    = useState('daily')
   const [syncWindow,  setSyncWindow]  = useState('00:00 – 06:00 UTC')
   const [warnPeriod,  setWarnPeriod]  = useState('90')
   const [webhookUrl,  setWebhookUrl]  = useState('')
   const [webhookTest, setWebhookTest] = useState(null)
 
-  // Default WIPO holder: first active subsidiary
   const defaultHolder = SUBSIDIARIES.find(s => s.active)?.name ?? ''
 
   function testWebhook() {
@@ -355,48 +450,62 @@ export default function ApiSetup({ registryStatus = {}, onCsvUpload, onCsvClear 
   return (
     <div className="space-y-5 max-w-4xl">
 
-      {/* ── Data Sources ── */}
+      {/* ── SECTION 1 — Live API Connections ── */}
       <div className="bg-navy-800 border border-navy-500 rounded-xl overflow-hidden">
         <div className="px-5 py-4 border-b border-navy-500 flex items-center gap-3">
           <div className="p-2 rounded-lg bg-accent-blue/10 border border-accent-blue/20">
-            <Database className="w-4 h-4 text-accent-blue" />
+            <Wifi className="w-4 h-4 text-accent-blue" />
           </div>
           <div>
-            <h3 className="font-semibold text-white text-sm">Data Sources</h3>
-            <p className="text-xs text-slate-400 mt-0.5">Live API connections and manual file uploads — all data managed here</p>
+            <h3 className="font-semibold text-white text-sm">Section 1 — Live API Connections</h3>
+            <p className="text-xs text-slate-400 mt-0.5">Registries fetched automatically when you click Refresh All</p>
           </div>
-        </div>
-
-        {/* Live API connections */}
-        <div className="px-5 pt-4 pb-2">
-          <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-2">Live API</p>
         </div>
         <div className="divide-y divide-navy-600/20">
           {REGISTRIES.filter(r => r.fetchStrategy !== 'csv' && !r.hidden).map(reg => (
-            <LiveApiCard
-              key={reg.id}
-              reg={reg}
-              registryStatus={registryStatus}
-            />
+            <LiveApiCard key={reg.id} reg={reg} registryStatus={registryStatus} />
           ))}
         </div>
+      </div>
 
-        {/* Manual CSV uploads */}
-        <div className="px-5 pt-5 pb-2 border-t border-navy-500 mt-2">
-          <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-3">Manual Upload</p>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {REGISTRIES.filter(r => r.fetchStrategy === 'csv').map(reg => (
-              <ManualUploadCard
-                key={reg.id}
-                reg={reg}
-                registryStatus={registryStatus}
-                onCsvUpload={onCsvUpload}
-                onCsvClear={onCsvClear}
-              />
-            ))}
+      {/* ── SECTION 2 — Manual Upload Registries ── */}
+      <div className="bg-navy-800 border border-navy-500 rounded-xl overflow-hidden">
+        <div className="px-5 py-4 border-b border-navy-500 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-teal-500/10 border border-teal-500/20">
+              <Upload className="w-4 h-4 text-teal-400" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-white text-sm">Section 2 — Manual Upload Registries</h3>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Upload CSV or XLSX from any registry — IP India, ILPO, CNIPA, JPO, and more
+              </p>
+            </div>
           </div>
+          <button
+            onClick={downloadCsvTemplate}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-accent-blue border border-accent-blue/30 bg-accent-blue/5 hover:bg-accent-blue/15 transition-colors whitespace-nowrap flex-shrink-0"
+          >
+            <Download className="w-3.5 h-3.5" />
+            Download Template
+          </button>
         </div>
-        <div className="h-4" />
+
+        <div className="px-5 py-2 bg-navy-700/20 border-b border-navy-600/30">
+          <p className="text-[11px] text-slate-500 font-mono">
+            Template columns: Applicant · Mark Name · Application No. · Registration No. · Kind of Mark ·
+            NCL Class · <span className="text-teal-400">Country of Filing</span> · <span className="text-teal-400">Registry</span> ·
+            Filed Date · Publication Date · Registration Date · Expiry Date · Current Status
+          </p>
+        </div>
+
+        <div className="p-5">
+          <UploadManager
+            csvUploads={csvUploads}
+            onCsvUpload={onCsvUpload}
+            onCsvClear={onCsvClear}
+          />
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -541,6 +650,41 @@ export default function ApiSetup({ registryStatus = {}, onCsvUpload, onCsvClear 
               </tbody>
             </table>
           </div>
+        </div>
+      </div>
+
+      {/* ── SECTION 3 — Subsidiary Entities ── */}
+      <div className="bg-navy-800 border border-navy-500 rounded-xl overflow-hidden">
+        <div className="px-5 py-4 border-b border-navy-500 flex items-center gap-3">
+          <div className="p-2 rounded-lg bg-purple-500/10 border border-purple-500/20">
+            <Building2 className="w-4 h-4 text-purple-400" />
+          </div>
+          <div>
+            <h3 className="font-semibold text-white text-sm">Section 3 — Subsidiary Entities</h3>
+            <p className="text-xs text-slate-400 mt-0.5">All 8 subsidiaries tracked by this dashboard — defined in <code className="text-accent-blue font-mono">src/subsidiaries.js</code></p>
+          </div>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-navy-600/40 bg-navy-700/30">
+                {['#', 'Entity', 'Short Name', 'HQ', 'Search Key'].map(h => (
+                  <th key={h} className="px-5 py-3 text-left text-[11px] font-semibold text-slate-400 uppercase tracking-wider whitespace-nowrap">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {SUBSIDIARIES.filter(s => s.active).map((s, i) => (
+                <tr key={s.id} className="border-b border-navy-600/30 hover:bg-navy-700/20 transition-colors">
+                  <td className="px-5 py-3 text-slate-500 text-xs">{i + 1}</td>
+                  <td className="px-5 py-3 font-medium text-white whitespace-nowrap">{s.name}</td>
+                  <td className="px-5 py-3 text-slate-300 whitespace-nowrap">{s.shortName}</td>
+                  <td className="px-5 py-3 text-slate-400 text-xs whitespace-nowrap">{s.country}</td>
+                  <td className="px-5 py-3 font-mono text-xs text-accent-blue whitespace-nowrap">{s.searchKey ?? s.name}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
 
