@@ -1,6 +1,7 @@
 {
-  "rewrites": [
-    { "source": "/((?!api/).*)", "destination": "/" }
-  ]
+  "version": 2,
+  "github": {
+    "autoAlias": true
+  }
 }
 
