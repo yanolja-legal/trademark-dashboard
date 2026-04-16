@@ -208,7 +208,12 @@ export default function ApiSetup({ registryStatus = {} }) {
               icon = <CheckCircle2 className="w-4 h-4" />
               iconCls  = 'text-green-400'
               labelCls = 'text-green-400'
-              statusLabel = `Connected${!reg.requiresKey ? ' (no key needed)' : ''} · ${rs.count} results`
+              if (reg.id === 'euipo' && euipoEnv) {
+                const envLabel = euipoEnv === 'production' ? 'Production' : 'Sandbox'
+                statusLabel = `Connected (${envLabel}) · ${rs.count} results`
+              } else {
+                statusLabel = `Connected${!reg.requiresKey ? ' (no key needed)' : ''} · ${rs.count} results`
+              }
             } else if (isCsv) {
               icon = <AlertCircle className="w-4 h-4" />
               iconCls  = 'text-teal-400'
@@ -225,7 +230,12 @@ export default function ApiSetup({ registryStatus = {} }) {
               icon = <Clock className="w-4 h-4" />
               iconCls  = 'text-indigo-400'
               labelCls = 'text-indigo-400'
-              statusLabel = reg.apiPath ? 'Pending credentials' : 'Not yet implemented'
+              if (reg.id === 'euipo' && euipoEnv) {
+                const envLabel = euipoEnv === 'production' ? 'Production' : 'Sandbox'
+                statusLabel = `Pending credentials (${envLabel})`
+              } else {
+                statusLabel = reg.apiPath ? 'Pending credentials' : 'Not yet implemented'
+              }
             } else if (isError) {
               icon = <XCircle className="w-4 h-4" />
               iconCls  = 'text-red-400'

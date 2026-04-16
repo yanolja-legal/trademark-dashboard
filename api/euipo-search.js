@@ -28,16 +28,18 @@ const PROD_TOKEN_URL    = 'https://auth.euipo.europa.eu/oidc/accessToken'
 const SANDBOX_API_BASE  = 'https://api-sandbox.euipo.europa.eu/trademark-search/trademarks'
 const PROD_API_BASE     = 'https://api.euipo.europa.eu/trademark-search/trademarks'
 
-const PAGE_SIZE = 50
+const PAGE_SIZE = 100
 const MAX_PAGES = 10
 
 // ── in-memory token cache (persists across warm Vercel invocations) ────────────
+// Keyed by environment so a sandbox→production switch immediately re-authenticates.
 
-let tokenCache = { token: null, expiresAt: 0 }
+let tokenCache = { token: null, expiresAt: 0, env: null }
 
 async function getToken(clientId, clientSecret, isSandbox) {
-  const now      = Date.now()
-  if (tokenCache.token && tokenCache.expiresAt > now + 60_000) {
+  const now = Date.now()
+  const env = isSandbox ? 'sandbox' : 'production'
+  if (tokenCache.token && tokenCache.expiresAt > now + 60_000 && tokenCache.env === env) {
     return tokenCache.token
   }
 
@@ -79,7 +81,7 @@ async function getToken(clientId, clientSecret, isSandbox) {
   }
 
   const { access_token, expires_in = 28800 } = parsed
-  tokenCache = { token: access_token, expiresAt: now + expires_in * 1_000 }
+  tokenCache = { token: access_token, expiresAt: now + expires_in * 1_000, env: isSandbox ? 'sandbox' : 'production' }
   return access_token
 }
 
@@ -102,9 +104,10 @@ function extractNcl(tm) {
 }
 
 function normalise(tm) {
-  const appNo = tm.applicationNumber || tm.applicationNum || tm.trademarkId || ''
-  const regNo = tm.registrationNumber || tm.registrationNum || ''
+  const appNo = tm.applicationNumber ?? tm.applicationNum ?? tm.trademarkId ?? ''
+  const regNo = tm.registrationNumber ?? tm.registrationNum ?? ''
 
+  // Production API uses wordMark; sandbox may use markText / trademarkName
   const name =
     tm.wordMark ??
     tm.markText ??
@@ -112,11 +115,12 @@ function normalise(tm) {
     tm.representation?.text ??
     (tm.markKind === 'Figurative' ? '[Figurative mark]' : '—')
 
+  // Production API returns holders[]; sandbox may use applicants[] or flat fields
   const applicant =
-    tm.applicants?.[0]?.name ??
     tm.holders?.[0]?.name    ??
-    tm.applicantName          ??
+    tm.applicants?.[0]?.name ??
     tm.holderName             ??
+    tm.applicantName          ??
     '—'
 
   return {
@@ -125,15 +129,15 @@ function normalise(tm) {
     country:          'European Union',
     applicant,
     markName:         name,
-    serialNo:         appNo,
-    regNo,
+    serialNo:         String(appNo),
+    regNo:            String(regNo),
     kindOfMark:       tm.markKind ?? tm.trademarkKind ?? tm.markType ?? '—',
     ncl:              extractNcl(tm),
     applicationDate:  (tm.applicationDate  || '').slice(0, 10),
     publicationDate:  (tm.publicationDate  || '').slice(0, 10),
     registrationDate: (tm.registrationDate || '').slice(0, 10),
     expiryDate:       (tm.expiryDate       || '').slice(0, 10),
-    status:           mapStatus(tm.trademarkStatus ?? tm.status ?? tm.markStatus),
+    status:           mapStatus(tm.trademarkStatus ?? tm.status ?? tm.markStatus ?? ''),
   }
 }
 
@@ -203,20 +207,19 @@ async function euipoSearch(params, clientId, token, isSandbox) {
 
 async function searchByHolder(holder, clientId, token, isSandbox) {
   const results = []
-  let start     = 0
 
   for (let page = 0; page < MAX_PAGES; page++) {
+    // Production + sandbox: holderName / page (0-indexed) / size
     const data = await euipoSearch(
-      { q: holder, start: String(start), rows: String(PAGE_SIZE) },
+      { holderName: holder, page: String(page), size: String(PAGE_SIZE) },
       clientId, token, isSandbox
     )
 
     const hits = data.trademarks ?? data.results ?? data.data ?? []
     hits.forEach(tm => results.push(normalise(tm)))
 
-    const total = data.totalResults ?? data.total ?? data.count ?? hits.length
+    const total = data.total ?? data.totalResults ?? data.totalElements ?? hits.length
     if (results.length >= total || hits.length < PAGE_SIZE) break
-    start += PAGE_SIZE
   }
 
   // Strict filter: only keep records whose holder name actually matches
