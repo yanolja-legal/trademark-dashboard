@@ -223,7 +223,7 @@ export default function App() {
           })
 
           try {
-            const term = sub.searchKey ?? sub.name
+            const term = (reg.searchKeyField ? (sub[reg.searchKeyField] ?? sub.searchKey) : sub.searchKey) ?? sub.name
             const url  = `${reg.apiPath}?${reg.queryParam}=${encodeURIComponent(term)}`
             const res  = await fetchWithTimeout(url)
             const json = await res.json()
@@ -312,7 +312,7 @@ export default function App() {
         })
       } else {
         // holder: fetch just this one entity
-        const term = sub.searchKey ?? sub.name
+        const term = (reg.searchKeyField ? (sub[reg.searchKeyField] ?? sub.searchKey) : sub.searchKey) ?? sub.name
         const url  = `${reg.apiPath}?${reg.queryParam}=${encodeURIComponent(term)}`
         const res  = await fetchWithTimeout(url)
         const json = await res.json()
