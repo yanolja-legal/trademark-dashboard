@@ -275,22 +275,22 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Missing required parameter: applicantName' })
   }
 
-  // Debug mode — tests both endpoints to find which one the key can access
+  // Debug mode — tests trademarkService path vs trademarkInfoSearchService path
   if (req.query.debug === 'true') {
-    const freeUrl = `http://plus.kipris.or.kr/kipo-api/kipi/trademarkInfoSearchService/freeSearchInfo` +
-                    `?word=${encodeURIComponent(applicantName)}&${STATUS_PARAMS}` +
-                    `&docsStart=1&docsCount=5&ServiceKey=${encodeURIComponent(accessKey)}`
-    const applicantUrl = `${BASE_URL}?applicantName=${encodeURIComponent(applicantName)}` +
-                         `&${STATUS_PARAMS}&docsStart=1&docsCount=5` +
-                         `&ServiceKey=${encodeURIComponent(accessKey)}`
-    const [freeRes, applicantRes] = await Promise.all([
-      fetchWithTimeout(freeUrl),
-      fetchWithTimeout(applicantUrl),
+    const newUrl = `http://plus.kipris.or.kr/kipo-api/kipi/trademarkService/applicantNamesearchInfo` +
+                   `?applicantName=${encodeURIComponent(applicantName)}&${STATUS_PARAMS}` +
+                   `&docsStart=1&docsCount=5&ServiceKey=${encodeURIComponent(accessKey)}`
+    const oldUrl = `${BASE_URL}?applicantName=${encodeURIComponent(applicantName)}` +
+                   `&${STATUS_PARAMS}&docsStart=1&docsCount=5` +
+                   `&ServiceKey=${encodeURIComponent(accessKey)}`
+    const [newRes, oldRes] = await Promise.all([
+      fetchWithTimeout(newUrl),
+      fetchWithTimeout(oldUrl),
     ])
     const key = encodeURIComponent(accessKey)
     return res.status(200).json({
-      freeSearchInfo:      { url: freeUrl.replace(key, '***KEY***'),      xml: await freeRes.text() },
-      applicantNameSearch: { url: applicantUrl.replace(key, '***KEY***'), xml: await applicantRes.text() },
+      trademarkService:         { url: newUrl.replace(key, '***KEY***'), xml: await newRes.text() },
+      trademarkInfoSearchService: { url: oldUrl.replace(key, '***KEY***'), xml: await oldRes.text() },
     })
   }
 
