@@ -5,7 +5,7 @@
  * Requires KIPRIS_API_KEY in Vercel environment variables.
  *
  * ── Endpoint ──────────────────────────────────────────────────────────────
- * GET http://plus.kipris.or.kr/kipo-api/kipi/trademarkInfoSearchService/applicantNamesearchInfo
+ * GET http://plus.kipris.or.kr/openapi/rest/trademarkInfoSearchService/applicantNamesearchInfo
  *
  * Key input parameters:
  *   applicantName  — applicant name (Korean)
@@ -19,7 +19,7 @@
  *   abandonment    — include abandoned marks     (true/false)
  *   docsStart      — page number (1-based)
  *   docsCount      — records per page (max 500)
- *   ServiceKey     — KIPRIS API key
+ *   accessKey      — KIPRIS API key
  *
  * ── Response XML structure ────────────────────────────────────────────────
  *   <response>
@@ -49,7 +49,7 @@ export const config = { runtime: 'nodejs' }
 
 // ── constants ─────────────────────────────────────────────────────────────────
 
-const BASE_URL      = 'https://plus.kipris.or.kr/kipo-api/kipi/trademarkService/applicantNamesearchInfo'
+const BASE_URL      = 'http://plus.kipris.or.kr/openapi/rest/trademarkInfoSearchService/applicantNamesearchInfo'
 const ROWS_PER_PAGE = 100
 const MAX_RECORDS   = 500
 
@@ -209,18 +209,17 @@ async function fetchPage(applicantName, accessKey, pageNo) {
   const url = `${BASE_URL}?applicantName=${encodeURIComponent(applicantName)}` +
               `&${STATUS_PARAMS}` +
               `&docsStart=${pageNo}&docsCount=${ROWS_PER_PAGE}` +
-              `&ServiceKey=${encodeURIComponent(accessKey)}`
+              `&accessKey=${encodeURIComponent(accessKey)}`
 
   const res = await fetchWithTimeout(url)
   if (!res.ok) throw new Error(`KIPRIS returned HTTP ${res.status}`)
 
   const xml = await res.text()
 
-  const successYN  = xmlTag(xml, 'successYN')
   const resultCode = xmlTag(xml, 'resultCode')
-  if (successYN === 'N') {
-    const msg = xmlTag(xml, 'resultMsg') || resultCode
-    throw new Error(`KIPRIS API error: ${msg} (code ${resultCode})`)
+  const resultMsg  = xmlTag(xml, 'resultMsg')
+  if (resultMsg && resultMsg.includes('ERROR')) {
+    throw new Error(`KIPRIS API error: ${resultMsg} (code ${resultCode})`)
   }
 
   const totalCount = parseInt(xmlTag(xml, 'TotalSearchCount') || '0', 10)
@@ -275,11 +274,10 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Missing required parameter: applicantName' })
   }
 
-  // Debug mode — tests trademarkService path with real key
+  // Debug mode — returns raw KIPRIS XML for inspection
   if (req.query.debug === 'true') {
-    const url = `https://plus.kipris.or.kr/kipo-api/kipi/trademarkService/applicantNamesearchInfo` +
-                `?applicantName=${encodeURIComponent(applicantName)}&${STATUS_PARAMS}` +
-                `&docsStart=1&docsCount=5&ServiceKey=${encodeURIComponent(accessKey)}`
+    const url = `${BASE_URL}?applicantName=${encodeURIComponent(applicantName)}&${STATUS_PARAMS}` +
+                `&docsStart=1&docsCount=5&accessKey=${encodeURIComponent(accessKey)}`
     const debugRes = await fetchWithTimeout(url)
     const xml      = await debugRes.text()
     return res.status(200).json({ url: url.replace(encodeURIComponent(accessKey), '***KEY***'), xml })
