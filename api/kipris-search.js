@@ -69,7 +69,7 @@ export const config = { runtime: 'nodejs' }
 
 // ── constants ─────────────────────────────────────────────────────────────────
 
-const BASE_URL   = 'https://plus.kipris.or.kr/kipo-api/kipi/trademarkInfoSearchService/applicantNamesearchInfo'
+const BASE_URL   = 'http://plus.kipris.or.kr/kipo-api/kipi/trademarkInfoSearchService/applicantNamesearchInfo'
 const ROWS_PER_PAGE = 100
 const MAX_RECORDS   = 500   // safety cap — most companies have <100 KR marks
 
@@ -235,7 +235,7 @@ function parseItem(item, queryApplicant) {
 async function fetchPage(applicantName, accessKey, pageNo) {
   const url = `${BASE_URL}?applicantName=${encodeURIComponent(applicantName)}` +
               `&numOfRows=${ROWS_PER_PAGE}&pageNo=${pageNo}` +
-              `&accessKey=${encodeURIComponent(accessKey)}`
+              `&ServiceKey=${encodeURIComponent(accessKey)}`
 
   const res = await fetchWithTimeout(url)
   if (!res.ok) throw new Error(`KIPRIS returned HTTP ${res.status}`)
