@@ -53,10 +53,17 @@ const BASE_URL      = 'http://plus.kipris.or.kr/kipo-api/kipi/trademarkInfoSearc
 const ROWS_PER_PAGE = 100
 const MAX_RECORDS   = 500
 
-// Status filter params — include all statuses so we get the full picture
+// Boolean filter params — all statuses and all mark types set to true
 const STATUS_PARAMS = 'application=true&registration=true&refused=true' +
                       '&expiration=true&withdrawal=true&publication=true' +
-                      '&cancel=true&abandonment=true'
+                      '&cancel=true&abandonment=true' +
+                      '&trademark=true&serviceMark=true&trademarkServiceMark=true' +
+                      '&businessEmblem=true&collectiveMark=true&geoOrgMark=true' +
+                      '&internationalMark=true&certMark=true&geoCertMark=true' +
+                      '&character=true&compositionCharacter=true&figure=true' +
+                      '&figureComposition=true&sound=true&fragrance=true' +
+                      '&color=true&colorMixed=true&dimension=true' +
+                      '&hologram=true&motion=true&visual=true&invisible=true'
 
 // ── utilities ─────────────────────────────────────────────────────────────────
 
