@@ -235,7 +235,7 @@ function parseItem(item, queryApplicant) {
 async function fetchPage(applicantName, accessKey, pageNo) {
   const url = `${BASE_URL}?applicantName=${encodeURIComponent(applicantName)}` +
               `&numOfRows=${ROWS_PER_PAGE}&pageNo=${pageNo}` +
-              `&accessKey=${encodeURIComponent(accessKey)}`
+              `&accessKey=${accessKey}`
 
   const res = await fetchWithTimeout(url)
   if (!res.ok) throw new Error(`KIPRIS returned HTTP ${res.status}`)
