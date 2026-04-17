@@ -215,6 +215,12 @@ export default function App() {
 
       } else if (reg.fetchStrategy === 'holder') {
         for (const sub of activeSubs) {
+          // Skip subsidiaries that don't have the required search key for this registry
+          if (reg.searchKeyField && !sub[reg.searchKeyField]) {
+            fetchCountRef.current++
+            continue
+          }
+
           const stepN = fetchCountRef.current + 1
           setProgress({
             current: fetchCountRef.current,
@@ -311,7 +317,11 @@ export default function App() {
           return [...filtered, ...results.filter(r => !existingIds.has(r.id))]
         })
       } else {
-        // holder: fetch just this one entity
+        // holder: fetch just this one entity — skip if registry requires a specific key this sub doesn't have
+        if (reg.searchKeyField && !sub[reg.searchKeyField]) {
+          setRegistryStatus(prev => ({ ...prev, [reg.id]: { ...prev[reg.id], status: 'pending' } }))
+          return
+        }
         const term = (reg.searchKeyField ? (sub[reg.searchKeyField] ?? sub.searchKey) : sub.searchKey) ?? sub.name
         const url  = `${reg.apiPath}?${reg.queryParam}=${encodeURIComponent(term)}`
         const res  = await fetchWithTimeout(url)
