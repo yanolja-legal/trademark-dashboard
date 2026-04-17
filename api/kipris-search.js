@@ -1,81 +1,65 @@
 /**
  * Vercel serverless function: /api/kipris-search
  *
- * Fetches Korean trademark data from KIPRIS Plus
- * (Korean Intellectual Property Information Search — KIPO / KIPI).
+ * Fetches Korean trademark data from KIPRIS Plus.
+ * Requires KIPRIS_API_KEY in Vercel environment variables.
  *
- * ── Authentication ────────────────────────────────────────────────────────
- * Requires KIPRIS_API_KEY set in Vercel environment variables.
- * Apply at: https://plus.kipris.or.kr  (free tier: 1 000 calls/month)
- * If the key is not set, returns { status: 'pending', results: [] }.
+ * ── Endpoint ──────────────────────────────────────────────────────────────
+ * GET http://plus.kipris.or.kr/kipo-api/kipi/trademarkInfoSearchService/applicantNamesearchInfo
  *
- * ── API endpoint used ─────────────────────────────────────────────────────
- * POST/GET https://plus.kipris.or.kr/kipo-api/kipi/trademarkInfoSearchService/applicantNamesearchInfo
+ * Key input parameters:
+ *   applicantName  — applicant name (Korean)
+ *   application    — include filed marks        (true/false)
+ *   registration   — include registered marks   (true/false)
+ *   refused        — include refused marks       (true/false)
+ *   expiration     — include expired marks       (true/false)
+ *   withdrawal     — include withdrawn marks     (true/false)
+ *   publication    — include published marks     (true/false)
+ *   cancel         — include cancelled marks     (true/false)
+ *   abandonment    — include abandoned marks     (true/false)
+ *   docsStart      — page number (1-based)
+ *   docsCount      — records per page (max 500)
+ *   ServiceKey     — KIPRIS API key
  *
- * Query parameters:
- *   applicantName  — applicant name to search (Korean or English)
- *   numOfRows      — records per page (max 500; we use 100)
- *   pageNo         — 1-based page number
- *   accessKey      — KIPRIS API key
- *
- * ── Response format ───────────────────────────────────────────────────────
- * XML:
+ * ── Response XML structure ────────────────────────────────────────────────
  *   <response>
- *     <header><resultCode>E0000</resultCode><resultMsg>정상</resultMsg></header>
+ *     <header><successYN>Y</successYN></header>
  *     <body>
- *       <count><totalCount>N</totalCount></count>
  *       <items>
- *         <item>
- *           <applicationNumber>4020220123456</applicationNumber>
- *           <trademarkName>야놀자</trademarkName>
- *           <applicantName>야놀자 주식회사</applicantName>
- *           <applicationDate>20220315</applicationDate>
- *           <publicationNumber>40-2022-0098765</publicationNumber>
- *           <publicationDate>20220920</publicationDate>
- *           <registrationNumber>4012345670000</registrationNumber>
- *           <registrationDate>20230110</registrationDate>
- *           <expirationDate>20330110</expirationDate>
- *           <registerStatus>등록</registerStatus>
- *           <markFeatureName>문자</markFeatureName>
- *           <asignProductMainCodeList>
- *             <asignProductMainCodeList>9</asignProductMainCodeList>
- *             <asignProductMainCodeList>42</asignProductMainCodeList>
- *           </asignProductMainCodeList>
- *         </item>
+ *         <TotalSearchCount>N</TotalSearchCount>
+ *         <TradeMarkInfo>
+ *           <ApplicationNumber>4020220123456</ApplicationNumber>
+ *           <Title>야놀자</Title>
+ *           <ApplicantName>야놀자 주식회사</ApplicantName>
+ *           <ApplicationDate>20220315</ApplicationDate>
+ *           <PublicNumber>...</PublicNumber>
+ *           <PublicDate>20220920</PublicDate>
+ *           <RegistrationNumber>4012345670000</RegistrationNumber>
+ *           <RegistrationDate>20230110</RegistrationDate>
+ *           <ApplicationStatus>등록</ApplicationStatus>
+ *           <GoodClassificationCode>G0901G4201</GoodClassificationCode>
+ *           <ViennaCode>...</ViennaCode>
+ *         </TradeMarkInfo>
  *       </items>
  *     </body>
  *   </response>
- *
- * ── Number formats ────────────────────────────────────────────────────────
- *   Application:  4020220123456   → 40-2022-0123456  (prefix 40 = trademark)
- *   Registration: 4012345670000   → 40-1234567-0000
- *
- * ── Status mapping (Korean → dashboard) ──────────────────────────────────
- *   등록 / 존속 / 갱신  →  Active
- *   출원 / 공고         →  Pending
- *   소멸 / 취소 / 무효 / 포기 / 거절 / 실효 / 취하  →  Expired
- *
- * ── Kind-of-mark mapping ──────────────────────────────────────────────────
- *   문자  →  Word
- *   도형  →  Device
- *   결합  →  Combined
- *   입체  →  3D
- *   소리  →  Sound
- *   색채  →  Colour
- *   냄새  →  Scent
  */
 
 export const config = { runtime: 'nodejs' }
 
 // ── constants ─────────────────────────────────────────────────────────────────
 
-const BASE_URL   = 'http://plus.kipris.or.kr/kipo-api/kipi/trademarkInfoSearchService/applicantNamesearchInfo'
+const BASE_URL      = 'http://plus.kipris.or.kr/kipo-api/kipi/trademarkInfoSearchService/applicantNamesearchInfo'
 const ROWS_PER_PAGE = 100
-const MAX_RECORDS   = 500   // safety cap — most companies have <100 KR marks
+const MAX_RECORDS   = 500
+
+// Status filter params — include all statuses so we get the full picture
+const STATUS_PARAMS = 'application=true&registration=true&refused=true' +
+                      '&expiration=true&withdrawal=true&publication=true' +
+                      '&cancel=true&abandonment=true'
 
 // ── utilities ─────────────────────────────────────────────────────────────────
 
-/** Fetch with 15-second hard timeout. */
 async function fetchWithTimeout(url, ms = 15000) {
   const ctrl  = new AbortController()
   const timer = setTimeout(() => ctrl.abort(), ms)
@@ -93,19 +77,16 @@ async function fetchWithTimeout(url, ms = 15000) {
   }
 }
 
-/** Return first text content of `<name>…</name>`, or ''. */
+/** Return first text content of <name>…</name>, or ''. */
 function xmlTag(xml, name) {
   const m = xml.match(new RegExp(`<${name}(?:\\s[^>]*)?>([\\s\\S]*?)</${name}>`, 'i'))
   return m ? m[1].replace(/<[^>]+>/g, '').trim() : ''
 }
 
-/**
- * Extract all <item>…</item> blocks from the response body.
- * KIPRIS nests items under <items><item>…</item></items>.
- */
+/** Extract all <TradeMarkInfo>…</TradeMarkInfo> blocks. */
 function xmlItems(xml) {
   const out = []
-  const re  = /<item>([\s\S]*?)<\/item>/gi
+  const re  = /<TradeMarkInfo>([\s\S]*?)<\/TradeMarkInfo>/gi
   let m
   while ((m = re.exec(xml)) !== null) out.push(m[1])
   return out
@@ -119,44 +100,59 @@ function isoDate(raw) {
   return ''
 }
 
-/** Map Korean registration status to dashboard vocabulary. */
-function mapStatus(korean, expiryISO) {
+/** Map Korean ApplicationStatus to dashboard vocabulary. */
+function mapStatus(korean) {
   const s = (korean || '').trim()
-  if (['등록', '존속', '갱신'].includes(s))                                         return 'Active'
-  if (['출원', '공고', '출원공고', '심사중'].includes(s))                            return 'Pending'
-  if (['소멸', '취소', '무효', '포기', '거절', '실효', '취하', '불등록'].includes(s)) return 'Expired'
-
-  // Unknown Korean status — fall back to expiry date
-  if (expiryISO) {
-    const days = (new Date(expiryISO) - new Date()) / 86_400_000
-    if (days < 0)   return 'Expired'
-    if (days < 90)  return 'Expiring Soon'
-    return 'Active'
-  }
+  if (['등록', '존속', '갱신'].some(v => s.includes(v)))                               return 'Active'
+  if (['출원', '공고', '출원공고', '심사중'].some(v => s.includes(v)))                  return 'Pending'
+  if (['소멸', '취소', '무효', '포기', '거절', '실효', '취하', '불등록'].some(v => s.includes(v))) return 'Expired'
   return 'Active'
 }
 
 /**
- * Map KIPRIS markFeatureName (Korean) to dashboard vocabulary.
- * 문자=Word  도형=Device  결합=Combined  입체=3D  소리=Sound  색채=Colour  냄새=Scent
+ * Derive kind-of-mark from ViennaCode and ApplicationNumber prefix.
+ *   ViennaCode present → Device or Combined
+ *   Prefix 41 → Service Mark
+ *   Default → Word
  */
-function mapKind(raw) {
-  const s = (raw || '').trim()
-  if (s.includes('문자'))  return 'Word'
-  if (s.includes('도형'))  return 'Device'
-  if (s.includes('결합'))  return 'Combined'
-  if (s.includes('입체'))  return '3D'
-  if (s.includes('소리'))  return 'Sound'
-  if (s.includes('색채'))  return 'Colour'
-  if (s.includes('냄새'))  return 'Scent'
-  if (!s)                  return 'Word'
-  return s
+function mapKind(viennaCode, appNo) {
+  if (viennaCode && viennaCode.trim()) return 'Device'
+  const prefix = (appNo || '').slice(0, 2)
+  if (prefix === '41') return 'Service Mark'
+  return 'Word'
 }
 
 /**
- * Format a raw KIPRIS application number.
- *   4020220123456 (13 digits, prefix 40) → 40-2022-0123456
+ * Parse NCL class numbers from GoodClassificationCode.
+ * KIPRIS format: concatenated 4-char codes e.g. "G0901G4201"
+ * where G + 2-digit class + 2-digit subclass.
+ * Falls back to parsing any standalone 1-2 digit numbers.
  */
+function parseNcl(raw) {
+  if (!raw) return ''
+  const s = raw.trim()
+  const codes = []
+
+  // Primary: KIPRIS format G{class:2}{sub:2} e.g. G0901 → class 9
+  const re1 = /G(\d{2})\d{2}/gi
+  let m
+  while ((m = re1.exec(s)) !== null) {
+    const n = parseInt(m[1], 10)
+    if (n >= 1 && n <= 45) codes.push(n)
+  }
+
+  // Fallback: plain numbers separated by spaces/commas
+  if (!codes.length) {
+    s.split(/[\s,;]+/).forEach(t => {
+      const n = parseInt(t.trim(), 10)
+      if (n >= 1 && n <= 45) codes.push(n)
+    })
+  }
+
+  return [...new Set(codes)].sort((a, b) => a - b).join(', ')
+}
+
+/** Format application number: 4020220123456 → 40-2022-0123456 */
 function fmtApp(raw) {
   if (!raw) return ''
   const s = raw.trim()
@@ -164,10 +160,7 @@ function fmtApp(raw) {
   return s
 }
 
-/**
- * Format a raw KIPRIS registration number.
- *   4012345670000 (13 digits) → 40-1234567-0000
- */
+/** Format registration number: 4012345670000 → 40-1234567-0000 */
 function fmtReg(raw) {
   if (!raw) return ''
   const s = raw.trim()
@@ -175,56 +168,29 @@ function fmtReg(raw) {
   return s
 }
 
-/**
- * Extract NCL class numbers from the nested <asignProductMainCodeList> block.
- * KIPRIS wraps the list in an outer tag of the same name:
- *   <asignProductMainCodeList>
- *     <asignProductMainCodeList>9</asignProductMainCodeList>
- *     <asignProductMainCodeList>42</asignProductMainCodeList>
- *   </asignProductMainCodeList>
- * We match only leaf instances (pure digit content).
- */
-function parseNcl(item) {
-  const codes = []
-  const re    = /<asignProductMainCodeList>(\d+)<\/asignProductMainCodeList>/gi
-  let m
-  while ((m = re.exec(item)) !== null) {
-    const n = parseInt(m[1], 10)
-    if (!isNaN(n)) codes.push(n)
-  }
-  // Fallback: <fullText> sometimes carries a class code
-  if (!codes.length) {
-    const ft = xmlTag(item, 'fullText')
-    if (ft && /^\d+$/.test(ft.trim())) codes.push(parseInt(ft.trim(), 10))
-  }
-  return [...new Set(codes)].sort((a, b) => a - b).join(', ')
-}
-
-/** Convert one <item> block into a dashboard trademark record. */
+/** Convert one <TradeMarkInfo> block into a dashboard trademark record. */
 function parseItem(item, queryApplicant) {
-  const rawApp   = xmlTag(item, 'applicationNumber')
-  const rawReg   = xmlTag(item, 'registrationNumber')
-  const statusKR = xmlTag(item, 'registerStatus') || xmlTag(item, 'applicationStatus')
-  const expiry   = isoDate(xmlTag(item, 'expirationDate'))
-  const status   = mapStatus(statusKR, expiry)
-  const ncl      = parseNcl(item)
-  const appNo    = fmtApp(rawApp)
+  const rawApp    = xmlTag(item, 'ApplicationNumber')
+  const rawReg    = xmlTag(item, 'RegistrationNumber')
+  const statusKR  = xmlTag(item, 'ApplicationStatus')
+  const viennaCode = xmlTag(item, 'ViennaCode')
+  const appNo     = fmtApp(rawApp)
 
   return {
     id:               `kipris-${rawApp || queryApplicant + Math.random().toString(36).slice(2, 7)}`,
-    applicant:        xmlTag(item, 'applicantName') || queryApplicant,
-    markName:         xmlTag(item, 'trademarkName') || '—',
+    applicant:        xmlTag(item, 'ApplicantName') || xmlTag(item, 'RegistrationRightholderName') || queryApplicant,
+    markName:         xmlTag(item, 'Title') || '—',
     registry:         'KIPRIS',
     country:          'South Korea',
     serialNo:         appNo,
     regNo:            fmtReg(rawReg),
-    kindOfMark:       mapKind(xmlTag(item, 'markFeatureName')),
-    ncl,
-    applicationDate:  isoDate(xmlTag(item, 'applicationDate')),
-    publicationDate:  isoDate(xmlTag(item, 'publicationDate')),
-    registrationDate: isoDate(xmlTag(item, 'registrationDate')),
-    expiryDate:       expiry,
-    status,
+    kindOfMark:       mapKind(viennaCode, rawApp),
+    ncl:              parseNcl(xmlTag(item, 'GoodClassificationCode')),
+    applicationDate:  isoDate(xmlTag(item, 'ApplicationDate')),
+    publicationDate:  isoDate(xmlTag(item, 'PublicDate')),
+    registrationDate: isoDate(xmlTag(item, 'RegistrationDate')),
+    expiryDate:       '',
+    status:           mapStatus(statusKR),
     source:           'live',
   }
 }
@@ -234,7 +200,8 @@ function parseItem(item, queryApplicant) {
 /** Fetch one page of results. Returns { totalCount, items: [rawXmlStrings] }. */
 async function fetchPage(applicantName, accessKey, pageNo) {
   const url = `${BASE_URL}?applicantName=${encodeURIComponent(applicantName)}` +
-              `&numOfRows=${ROWS_PER_PAGE}&pageNo=${pageNo}` +
+              `&${STATUS_PARAMS}` +
+              `&docsStart=${pageNo}&docsCount=${ROWS_PER_PAGE}` +
               `&ServiceKey=${encodeURIComponent(accessKey)}`
 
   const res = await fetchWithTimeout(url)
@@ -242,7 +209,6 @@ async function fetchPage(applicantName, accessKey, pageNo) {
 
   const xml = await res.text()
 
-  // Check API-level error — KIPRIS uses successYN=N for failures
   const successYN  = xmlTag(xml, 'successYN')
   const resultCode = xmlTag(xml, 'resultCode')
   if (successYN === 'N') {
@@ -250,7 +216,7 @@ async function fetchPage(applicantName, accessKey, pageNo) {
     throw new Error(`KIPRIS API error: ${msg} (code ${resultCode})`)
   }
 
-  const totalCount = parseInt(xmlTag(xml, 'totalCount') || '0', 10)
+  const totalCount = parseInt(xmlTag(xml, 'TotalSearchCount') || '0', 10)
   const items      = xmlItems(xml)
   return { totalCount, items }
 }
@@ -288,7 +254,6 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(204).end()
   if (req.method !== 'GET')     return res.status(405).json({ error: 'Method not allowed' })
 
-  // ── Check for API key ──────────────────────────────────────────────────────
   const accessKey = process.env.KIPRIS_API_KEY
   if (!accessKey) {
     return res.status(200).json({
@@ -298,21 +263,17 @@ export default async function handler(req, res) {
     })
   }
 
-  // ── Validate query params ──────────────────────────────────────────────────
   const applicantName = (req.query.applicantName || '').trim()
   if (!applicantName) {
     return res.status(400).json({ error: 'Missing required parameter: applicantName' })
   }
 
-  // ── Fetch & return ─────────────────────────────────────────────────────────
   try {
     const rawItems = await fetchAll(applicantName, accessKey)
-
-    const results = rawItems
+    const results  = rawItems
       .map(item => parseItem(item, applicantName))
-      .filter(r => r.serialNo || r.markName !== '—')   // skip genuinely empty rows
+      .filter(r => r.serialNo || r.markName !== '—')
 
-    // 1-hour CDN cache — KIPRIS data updates daily
     res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate=300')
     return res.status(200).json({ count: results.length, results })
 
