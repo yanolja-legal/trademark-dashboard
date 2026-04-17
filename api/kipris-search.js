@@ -268,15 +268,16 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Missing required parameter: applicantName' })
   }
 
-  // Debug mode — returns raw KIPRIS XML so we can inspect the actual response
+  // Debug mode — returns raw KIPRIS XML and the URL sent (key masked)
   if (req.query.debug === 'true') {
     const url = `${BASE_URL}?applicantName=${encodeURIComponent(applicantName)}` +
                 `&${STATUS_PARAMS}&docsStart=1&docsCount=5` +
                 `&ServiceKey=${encodeURIComponent(accessKey)}`
-    const debugRes = await fetchWithTimeout(url)
-    const xml      = await debugRes.text()
-    res.setHeader('Content-Type', 'text/xml')
-    return res.status(200).send(xml)
+    const maskedUrl = url.replace(encodeURIComponent(accessKey), '***KEY***')
+    const debugRes  = await fetchWithTimeout(url)
+    const xml       = await debugRes.text()
+    res.setHeader('Content-Type', 'application/json')
+    return res.status(200).json({ url: maskedUrl, xml })
   }
 
   try {
