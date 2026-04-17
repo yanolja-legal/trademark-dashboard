@@ -275,23 +275,14 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Missing required parameter: applicantName' })
   }
 
-  // Debug mode — tests trademarkService path vs trademarkInfoSearchService path
+  // Debug mode — tests trademarkService path with real key
   if (req.query.debug === 'true') {
-    const newUrl = `http://plus.kipris.or.kr/kipo-api/kipi/trademarkService/applicantNamesearchInfo` +
-                   `?applicantName=${encodeURIComponent(applicantName)}&${STATUS_PARAMS}` +
-                   `&docsStart=1&docsCount=5&ServiceKey=${encodeURIComponent(accessKey)}`
-    const oldUrl = `${BASE_URL}?applicantName=${encodeURIComponent(applicantName)}` +
-                   `&${STATUS_PARAMS}&docsStart=1&docsCount=5` +
-                   `&ServiceKey=${encodeURIComponent(accessKey)}`
-    const [newRes, oldRes] = await Promise.all([
-      fetchWithTimeout(newUrl),
-      fetchWithTimeout(oldUrl),
-    ])
-    const key = encodeURIComponent(accessKey)
-    return res.status(200).json({
-      trademarkService:         { url: newUrl.replace(key, '***KEY***'), xml: await newRes.text() },
-      trademarkInfoSearchService: { url: oldUrl.replace(key, '***KEY***'), xml: await oldRes.text() },
-    })
+    const url = `http://plus.kipris.or.kr/kipo-api/kipi/trademarkService/applicantNamesearchInfo` +
+                `?applicantName=${encodeURIComponent(applicantName)}&${STATUS_PARAMS}` +
+                `&docsStart=1&docsCount=5&ServiceKey=${encodeURIComponent(accessKey)}`
+    const debugRes = await fetchWithTimeout(url, 8000)
+    const xml      = await debugRes.text()
+    return res.status(200).json({ url: url.replace(encodeURIComponent(accessKey), '***KEY***'), xml })
   }
 
   try {
