@@ -275,16 +275,23 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Missing required parameter: applicantName' })
   }
 
-  // Debug mode — returns raw KIPRIS XML and the URL sent (key masked)
+  // Debug mode — tests both endpoints to find which one the key can access
   if (req.query.debug === 'true') {
-    const url = `${BASE_URL}?applicantName=${encodeURIComponent(applicantName)}` +
-                `&${STATUS_PARAMS}&docsStart=1&docsCount=5` +
-                `&ServiceKey=${encodeURIComponent(accessKey)}`
-    const maskedUrl = url.replace(encodeURIComponent(accessKey), '***KEY***')
-    const debugRes  = await fetchWithTimeout(url)
-    const xml       = await debugRes.text()
-    res.setHeader('Content-Type', 'application/json')
-    return res.status(200).json({ url: maskedUrl, xml })
+    const freeUrl = `http://plus.kipris.or.kr/kipo-api/kipi/trademarkInfoSearchService/freeSearchInfo` +
+                    `?word=${encodeURIComponent(applicantName)}&${STATUS_PARAMS}` +
+                    `&docsStart=1&docsCount=5&ServiceKey=${encodeURIComponent(accessKey)}`
+    const applicantUrl = `${BASE_URL}?applicantName=${encodeURIComponent(applicantName)}` +
+                         `&${STATUS_PARAMS}&docsStart=1&docsCount=5` +
+                         `&ServiceKey=${encodeURIComponent(accessKey)}`
+    const [freeRes, applicantRes] = await Promise.all([
+      fetchWithTimeout(freeUrl),
+      fetchWithTimeout(applicantUrl),
+    ])
+    const key = encodeURIComponent(accessKey)
+    return res.status(200).json({
+      freeSearchInfo:      { url: freeUrl.replace(key, '***KEY***'),      xml: await freeRes.text() },
+      applicantNameSearch: { url: applicantUrl.replace(key, '***KEY***'), xml: await applicantRes.text() },
+    })
   }
 
   try {
