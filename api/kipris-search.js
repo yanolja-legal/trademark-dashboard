@@ -49,7 +49,7 @@ export const config = { runtime: 'nodejs' }
 
 // ── constants ─────────────────────────────────────────────────────────────────
 
-const BASE_URL      = 'http://plus.kipris.or.kr/kipo-api/kipi/trademarkInfoSearchService/applicantNamesearchInfo'
+const BASE_URL      = 'http://plus.kipris.or.kr/kipo-api/kipi/trademarkService/applicantNamesearchInfo'
 const ROWS_PER_PAGE = 100
 const MAX_RECORDS   = 500
 
@@ -280,7 +280,7 @@ export default async function handler(req, res) {
     const url = `http://plus.kipris.or.kr/kipo-api/kipi/trademarkService/applicantNamesearchInfo` +
                 `?applicantName=${encodeURIComponent(applicantName)}&${STATUS_PARAMS}` +
                 `&docsStart=1&docsCount=5&ServiceKey=${encodeURIComponent(accessKey)}`
-    const debugRes = await fetchWithTimeout(url, 8000)
+    const debugRes = await fetchWithTimeout(url)
     const xml      = await debugRes.text()
     return res.status(200).json({ url: url.replace(encodeURIComponent(accessKey), '***KEY***'), xml })
   }
