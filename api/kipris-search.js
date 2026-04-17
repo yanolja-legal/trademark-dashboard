@@ -242,9 +242,10 @@ async function fetchPage(applicantName, accessKey, pageNo) {
 
   const xml = await res.text()
 
-  // Check API-level error codes
+  // Check API-level error — KIPRIS uses successYN=N for failures
+  const successYN  = xmlTag(xml, 'successYN')
   const resultCode = xmlTag(xml, 'resultCode')
-  if (resultCode && resultCode !== 'E0000') {
+  if (successYN === 'N') {
     const msg = xmlTag(xml, 'resultMsg') || resultCode
     throw new Error(`KIPRIS API error: ${msg} (code ${resultCode})`)
   }
