@@ -130,6 +130,30 @@ export default async function handler(req, res) {
     })
   }
 
+  // Debug mode — tests token fetch and returns diagnostic info
+  if (req.query.debug === 'true') {
+    try {
+      const tokenRes = await fetch(TOKEN_URL, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body:    new URLSearchParams({
+          grant_type: 'client_credentials',
+          client_id:  clientId,
+          client_secret: clientSecret,
+          scope: 'uid',
+        }),
+      })
+      const tokenBody = await tokenRes.text()
+      return res.status(200).json({
+        tokenUrl:    TOKEN_URL,
+        tokenStatus: tokenRes.status,
+        tokenBody:   tokenBody.replace(/"access_token":"[^"]+"/,'\"access_token\":\"***\"'),
+      })
+    } catch (err) {
+      return res.status(200).json({ tokenUrl: TOKEN_URL, error: err.message })
+    }
+  }
+
   const applicantName = (req.query.applicantName || '').trim()
   if (!applicantName) return res.status(400).json({ error: 'Missing required parameter: applicantName' })
 
