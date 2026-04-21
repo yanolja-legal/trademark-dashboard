@@ -110,6 +110,26 @@ function generateId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 7)
 }
 
+// ── API usage summary ─────────────────────────────────────────────────────────
+
+function ApiUsageSummary({ registryStatus }) {
+  const totalFetched = Object.values(registryStatus).reduce((sum, s) => sum + (s.count || 0), 0)
+  const kiprisTotal  = (registryStatus['kipris']?.count || 0) + (registryStatus['uspto']?.count || 0)
+  if (totalFetched === 0) return null
+  return (
+    <div className="px-5 py-3 bg-navy-700/20 border-t border-navy-600/30 flex flex-wrap items-center gap-x-5 gap-y-1">
+      <span className="text-xs text-slate-400">
+        Records fetched this session: <span className="text-slate-200 font-medium">{totalFetched.toLocaleString()}</span>
+      </span>
+      {kiprisTotal > 0 && (
+        <span className="text-xs text-yellow-400/80">
+          KIPRIS usage: <span className="font-medium">{kiprisTotal.toLocaleString()}</span> records — monitor against your monthly API call limit
+        </span>
+      )}
+    </div>
+  )
+}
+
 // ── Live API status row ───────────────────────────────────────────────────────
 
 function LiveApiCard({ reg, registryStatus }) {
@@ -439,6 +459,7 @@ export default function ApiSetup({ registryStatus = {}, csvUploads = [], onCsvUp
             <LiveApiCard key={reg.id} reg={reg} registryStatus={registryStatus} />
           ))}
         </div>
+        <ApiUsageSummary registryStatus={registryStatus} />
       </div>
 
       {/* ── SECTION 2 — Manual Upload Registries ── */}

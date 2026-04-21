@@ -110,7 +110,6 @@ export default function Portfolio({ data, registryStatus = {}, progress, lastUpd
     { label: 'Expired',       value: summary.expired,  color: 'text-slate-400'   },
   ]
 
-  const liveCount        = Object.values(registryStatus).reduce((sum, s) => sum + (s.count || 0), 0)
   const isRefreshing     = progress !== null
   const pendingRegs      = REGISTRIES.filter(r => !r.hidden && registryStatus[r.id]?.status === 'pending')
   const errorRegs        = REGISTRIES.filter(r => !r.hidden && registryStatus[r.id]?.status === 'error')
@@ -280,9 +279,6 @@ export default function Portfolio({ data, registryStatus = {}, progress, lastUpd
 
         <span className="text-sm text-slate-400 ml-auto">
           {filtered.length} result{filtered.length !== 1 ? 's' : ''}
-          {liveCount > 0 && (
-            <span className="ml-2 text-accent-blue text-xs">+{liveCount} live</span>
-          )}
         </span>
       </div>
 
