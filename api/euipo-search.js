@@ -130,27 +130,32 @@ export default async function handler(req, res) {
     })
   }
 
-  // Debug mode — tests token fetch and returns diagnostic info
+  // Debug mode — tests token + search and returns diagnostic info
   if (req.query.debug === 'true') {
     try {
-      const tokenRes = await fetch(TOKEN_URL, {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body:    new URLSearchParams({
-          grant_type: 'client_credentials',
-          client_id:  clientId,
-          client_secret: clientSecret,
-          scope: 'uid',
-        }),
+      const token = await getToken(clientId, clientSecret)
+      const searchUrl = `${API_BASE}/trademarks?` + new URLSearchParams({
+        query: 'applicants.name==*Yanolja*',
+        page:  '0',
+        size:  '10',
       })
-      const tokenBody = await tokenRes.text()
+      const searchRes  = await fetch(searchUrl, {
+        headers: {
+          Authorization:     `Bearer ${token}`,
+          'X-IBM-Client-Id': clientId,
+          Accept:            'application/json',
+        },
+      })
+      const searchBody = await searchRes.text()
       return res.status(200).json({
-        tokenUrl:    TOKEN_URL,
-        tokenStatus: tokenRes.status,
-        tokenBody:   tokenBody.replace(/"access_token":"[^"]+"/,'\"access_token\":\"***\"'),
+        tokenOk:      true,
+        searchUrl,
+        searchStatus: searchRes.status,
+        searchHeaders: Object.fromEntries(searchRes.headers.entries()),
+        searchBody:   searchBody.slice(0, 1000),
       })
     } catch (err) {
-      return res.status(200).json({ tokenUrl: TOKEN_URL, error: err.message })
+      return res.status(200).json({ error: err.message, stack: err.stack?.slice(0, 500) })
     }
   }
 
