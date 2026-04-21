@@ -67,7 +67,7 @@ const STATUS_PARAMS = 'application=true&registration=true&refused=true' +
 
 // ── utilities ─────────────────────────────────────────────────────────────────
 
-async function fetchWithTimeout(url, ms = 15000) {
+async function fetchWithTimeout(url, ms = 25000) {
   const ctrl  = new AbortController()
   const timer = setTimeout(() => ctrl.abort(), ms)
   try {
