@@ -441,7 +441,6 @@ export default function ApiSetup({ registryStatus = {}, csvUploads = [], onCsvUp
   const [webhookUrl,  setWebhookUrl]  = useState('')
   const [webhookTest, setWebhookTest] = useState(null)
 
-  const defaultHolder = SUBSIDIARIES.find(s => s.active)?.name ?? ''
 
   function testWebhook() {
     setWebhookTest({ ok: true, time: new Date().toLocaleTimeString() })
@@ -531,20 +530,6 @@ export default function ApiSetup({ registryStatus = {}, csvUploads = [], onCsvUp
 
         {/* WIPO */}
         <Section icon={Wifi} title="WIPO Madrid Monitor" subtitle="World Intellectual Property Organization — public API, no auth required" accent="#00ff88">
-          <div>
-            <label className="block text-xs font-medium text-slate-400 mb-1.5">
-              Holder Name <span className="text-slate-500 font-normal">(used in live search)</span>
-            </label>
-            <select
-              defaultValue={defaultHolder}
-              className="w-full px-3 py-2.5 bg-navy-700 border border-navy-500 rounded-lg text-sm text-slate-200 focus:outline-none focus:border-accent-blue/50 transition-colors"
-            >
-              <option value="">— select a subsidiary —</option>
-              {SUBSIDIARIES.filter(s => s.active).map(s => (
-                <option key={s.id} value={s.name}>{s.name}</option>
-              ))}
-            </select>
-          </div>
           <ApiKeyInput label="Base URL" defaultValue="https://www.wipo.int/madrid/monitor/api/v1" readOnly />
           <EntityChips label="Searchable entities" />
         </Section>
