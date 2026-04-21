@@ -140,7 +140,7 @@ export default async function handler(req, res) {
   if (req.query.debug === 'true') {
     try {
       const token     = await getToken(clientId, clientSecret)
-      const searchUrl = `${API_BASE}/trademarks?` + new URLSearchParams({ query: 'applicants.name==*Yanolja*', page: '0', size: '5' })
+      const searchUrl = `${API_BASE}/trademarks?` + new URLSearchParams({ query: 'applicants.name==*Yanolja*', page: '0', size: '10' })
       const searchRes = await fetchWithTimeout(searchUrl, {
         headers: { Authorization: `Bearer ${token}`, 'X-IBM-Client-Id': clientId, Accept: 'application/json' },
       })
