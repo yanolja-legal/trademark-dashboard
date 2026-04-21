@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react'
 import {
   Search, ChevronUp, ChevronDown, ChevronLeft, ChevronRight,
-  X, Globe, Loader2, AlertTriangle, Clock, RefreshCw,
+  X, Globe, Loader2, AlertTriangle, Clock, RefreshCw, Download,
 } from 'lucide-react'
 import { differenceInDays, parseISO, format, isValid } from 'date-fns'
 import { REGISTRIES } from '../registries'
@@ -43,6 +43,14 @@ const COLUMNS = [
 ]
 
 const PAGE_SIZE = 10
+
+const SORT_OPTIONS = [
+  { label: 'Applicant',  key: 'applicant'        },
+  { label: 'Mark Name',  key: 'markName'          },
+  { label: 'Filed',      key: 'applicationDate'   },
+  { label: 'Registry',   key: 'registry'          },
+  { label: 'Status',     key: 'status'            },
+]
 
 // ── pure helpers ──────────────────────────────────────────────────────────────
 
@@ -310,6 +318,27 @@ export default function Portfolio({ data, registryStatus = {}, progress, lastUpd
     setSearch(''); setStatus('All'); setRegistry('All'); setCountry('All'); setPage(1)
   }
 
+  function downloadCSV() {
+    const headers = ['Applicant','Mark Name','Registry','Country','Serial No.','Reg. No.','Kind','NCL','Filed','Published','Registered','Expires','Status']
+    const esc     = v => `"${String(v ?? '').replace(/"/g, '""')}"`
+    const lines   = [
+      headers.join(','),
+      ...filtered.map(t => [
+        t.applicant, t.markName, t.registry, t.country,
+        t.serialNo, t.regNo, t.kindOfMark, t.ncl,
+        fmt(t.applicationDate), fmt(t.publicationDate),
+        fmt(t.registrationDate), fmt(t.expiryDate), t.status,
+      ].map(esc).join(',')),
+    ]
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv' })
+    const url  = URL.createObjectURL(blob)
+    const a    = document.createElement('a')
+    a.href     = url
+    a.download = `trademarks-${new Date().toISOString().slice(0, 10)}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   // Summary counts
   const summary = {
     total:    data.length,
@@ -368,14 +397,25 @@ export default function Portfolio({ data, registryStatus = {}, progress, lastUpd
             </p>
           )}
         </div>
-        <button
-          onClick={onRefresh}
-          disabled={isRefreshing}
-          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-accent-blue/10 border border-accent-blue/30 text-accent-blue text-sm hover:bg-accent-blue/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors whitespace-nowrap flex-shrink-0"
-        >
-          <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-          Refresh All Registries
-        </button>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {filtered.length > 0 && (
+            <button
+              onClick={downloadCSV}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-green-500/10 border border-green-500/30 text-green-400 text-sm hover:bg-green-500/20 transition-colors whitespace-nowrap"
+            >
+              <Download className="w-4 h-4" />
+              Download CSV
+            </button>
+          )}
+          <button
+            onClick={onRefresh}
+            disabled={isRefreshing}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-accent-blue/10 border border-accent-blue/30 text-accent-blue text-sm hover:bg-accent-blue/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
+          >
+            <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+            Refresh All Registries
+          </button>
+        </div>
       </div>
 
       {/* ── Pending-credentials info bar ── */}
@@ -469,6 +509,25 @@ export default function Portfolio({ data, registryStatus = {}, progress, lastUpd
             ))}
           </select>
         ))}
+
+        <select
+          value={sortKey}
+          onChange={e => { setSortKey(e.target.value); setSortDir('asc'); setPage(1) }}
+          className="px-3 py-2.5 bg-navy-800 border border-navy-500 rounded-lg text-sm text-slate-200 focus:outline-none focus:border-accent-blue/50 transition-colors"
+        >
+          {SORT_OPTIONS.map(o => (
+            <option key={o.key} value={o.key}>Sort by: {o.label}</option>
+          ))}
+        </select>
+
+        <select
+          value={sortDir}
+          onChange={e => { setSortDir(e.target.value); setPage(1) }}
+          className="px-3 py-2.5 bg-navy-800 border border-navy-500 rounded-lg text-sm text-slate-200 focus:outline-none focus:border-accent-blue/50 transition-colors"
+        >
+          <option value="asc">A → Z</option>
+          <option value="desc">Z → A</option>
+        </select>
 
         <span className="text-sm text-slate-400 ml-auto">
           {filtered.length} result{filtered.length !== 1 ? 's' : ''}
