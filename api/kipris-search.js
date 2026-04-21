@@ -175,6 +175,19 @@ function fmtReg(raw) {
   return s
 }
 
+// Maps partial Korean applicant names (as they appear in KIPRIS) to English entity names
+const KIPRIS_NAME_MAP = [
+  { contains: '야놀자 클라우드', english: 'Yanolja Cloud Pte. Ltd.' },
+  { contains: '놀유니버스',     english: 'Nol Universe Co., Ltd.'  },
+  { contains: '야놀자',         english: 'Yanolja Co., Ltd.'       },
+]
+
+function mapApplicantName(koreanName) {
+  if (!koreanName) return koreanName
+  const match = KIPRIS_NAME_MAP.find(m => koreanName.includes(m.contains))
+  return match ? match.english : koreanName
+}
+
 /** Convert one <TradeMarkInfo> block into a dashboard trademark record. */
 function parseItem(item, queryApplicant) {
   const rawApp    = xmlTag(item, 'ApplicationNumber')
@@ -183,9 +196,11 @@ function parseItem(item, queryApplicant) {
   const viennaCode = xmlTag(item, 'ViennaCode')
   const appNo     = fmtApp(rawApp)
 
+  const koreanApplicant = xmlTag(item, 'ApplicantName') || xmlTag(item, 'RegistrationRightholderName') || queryApplicant
+
   return {
     id:               `kipris-${rawApp || queryApplicant + Math.random().toString(36).slice(2, 7)}`,
-    applicant:        xmlTag(item, 'ApplicantName') || xmlTag(item, 'RegistrationRightholderName') || queryApplicant,
+    applicant:        mapApplicantName(koreanApplicant),
     markName:         xmlTag(item, 'Title') || '—',
     registry:         'KIPRIS',
     country:          'South Korea',

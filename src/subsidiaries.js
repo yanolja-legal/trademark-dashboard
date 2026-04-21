@@ -1,5 +1,5 @@
 export const SUBSIDIARIES = [
-  { id: 1, name: "Yanolja Cloud Pte. Ltd.",       shortName: "Yanolja Cloud",         searchKey: "Yanolja Cloud",         country: "Singapore",     active: true },
+  { id: 1, name: "Yanolja Cloud Pte. Ltd.",       shortName: "Yanolja Cloud",         searchKey: "Yanolja Cloud",         country: "Singapore",     active: true, kiprisSearchKey: "야놀자 클라우드" },
   { id: 2, name: "Go Global Travel Ltd.",          shortName: "Go Global Travel",      searchKey: "Go Global Travel",      country: "Israel",        active: true },
   { id: 3, name: "Yanolja Co., Ltd.",              shortName: "Yanolja",               searchKey: "Yanolja",               country: "South Korea",   active: true, kiprisSearchKey: "야놀자" },
   { id: 4, name: "Yanolja Cloud Solution PVT Ltd.", shortName: "YCS India",            searchKey: "Yanolja Cloud Solution", country: "India",        active: true },
