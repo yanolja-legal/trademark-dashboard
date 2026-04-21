@@ -28,6 +28,9 @@ const USPTO_NAME_MAP = [
   { contains: 'INNSOFT',  english: 'Innsoft, Inc.'     },
 ]
 
+// Only keep results whose applicant matched one of our known entities
+const KNOWN_APPLICANTS = new Set(USPTO_NAME_MAP.map(m => m.english))
+
 function mapApplicantName(name) {
   if (!name) return name
   const upper = name.toUpperCase()
@@ -155,7 +158,7 @@ export default async function handler(req, res) {
     const rawItems = await fetchAll(applicantName, accessKey)
     const results  = rawItems
       .map(item => parseItem(item))
-      .filter(r => r.serialNo || r.markName !== '—')
+      .filter(r => (r.serialNo || r.markName !== '—') && KNOWN_APPLICANTS.has(r.applicant))
 
     res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate=300')
     return res.status(200).json({ count: results.length, results })
