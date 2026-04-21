@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react'
-import { Key, Bell, RefreshCw, Check, Eye, EyeOff, Wifi, Building2, XCircle, Clock, AlertCircle, Hash, Upload, Download, Trash2, Database, Plus, Zap, FileText } from 'lucide-react'
+import { RefreshCw, Check, Eye, EyeOff, Wifi, Building2, XCircle, AlertCircle, Hash, Upload, Download, Trash2, Plus, FileText } from 'lucide-react'
 import { format } from 'date-fns'
 import { SUBSIDIARIES } from '../subsidiaries.js'
 import { REGISTRIES }   from '../registries.js'
@@ -413,38 +413,12 @@ function ApiKeyInput({ label, defaultValue = '', placeholder = '•••••�
   )
 }
 
-function Toggle({ label, description, defaultChecked = false }) {
-  const [on, setOn] = useState(defaultChecked)
-  return (
-    <div className="flex items-center justify-between gap-4">
-      <div>
-        <p className="text-sm text-slate-200">{label}</p>
-        {description && <p className="text-xs text-slate-400 mt-0.5">{description}</p>}
-      </div>
-      <button
-        onClick={() => setOn(v => !v)}
-        className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${on ? 'bg-accent-blue' : 'bg-navy-500'}`}
-        aria-label={label}
-      >
-        <span className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${on ? 'translate-x-6' : 'translate-x-1'}`} />
-      </button>
-    </div>
-  )
-}
-
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function ApiSetup({ registryStatus = {}, csvUploads = [], onCsvUpload, onCsvClear }) {
-  const [syncFreq,    setSyncFreq]    = useState('daily')
-  const [syncWindow,  setSyncWindow]  = useState('00:00 – 06:00 UTC')
-  const [warnPeriod,  setWarnPeriod]  = useState('90')
-  const [webhookUrl,  setWebhookUrl]  = useState('')
-  const [webhookTest, setWebhookTest] = useState(null)
-
-
-  function testWebhook() {
-    setWebhookTest({ ok: true, time: new Date().toLocaleTimeString() })
-  }
+  const [syncFreq,   setSyncFreq]   = useState('daily')
+  const [syncWindow, setSyncWindow] = useState('00:00 – 06:00 UTC')
+  const [warnPeriod, setWarnPeriod] = useState('90')
 
   return (
     <div className="space-y-5 max-w-4xl">
@@ -507,69 +481,6 @@ export default function ApiSetup({ registryStatus = {}, csvUploads = [], onCsvUp
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-
-        {/* USPTO (via KIPRIS) */}
-        <Section icon={Clock} title="🇺🇸 USPTO (via KIPRIS)" subtitle="US trademark data — pending KIPRIS API key" accent="#6366f1">
-          <div className="flex items-center gap-2.5 px-4 py-3 rounded-lg bg-indigo-500/10 border border-indigo-500/20">
-            <Clock className="w-4 h-4 text-indigo-400 flex-shrink-0" />
-            <div>
-              <p className="text-sm font-medium text-indigo-300">Pending API Key Approval</p>
-              <p className="text-xs text-slate-400 mt-0.5">
-                US trademark data will be available once the KIPRIS API key is approved and added.
-              </p>
-            </div>
-          </div>
-          <div className="text-xs text-slate-400 leading-relaxed pt-1">
-            Coverage: <span className="text-slate-300 font-medium">RightRez, Inc.</span> and{' '}
-            <span className="text-slate-300 font-medium">Innsoft, Inc.</span> — data will populate
-            automatically once the API key is configured.
-          </div>
-          <EntityChips label="Entities pending coverage" />
-        </Section>
-
-        {/* WIPO */}
-        <Section icon={Wifi} title="WIPO Madrid Monitor" subtitle="World Intellectual Property Organization — public API, no auth required" accent="#00ff88">
-          <ApiKeyInput label="Base URL" defaultValue="https://www.wipo.int/madrid/monitor/api/v1" readOnly />
-          <EntityChips label="Searchable entities" />
-        </Section>
-
-        {/* Notifications */}
-        <Section icon={Bell} title="Notifications & Webhooks" subtitle="Alerts, webhooks, and event triggers" accent="#fbbf24">
-          <div>
-            <label className="block text-xs font-medium text-slate-400 mb-1.5">Webhook URL</label>
-            <div className="flex gap-2">
-              <input
-                type="url"
-                value={webhookUrl}
-                onChange={e => setWebhookUrl(e.target.value)}
-                placeholder="https://your-app.com/webhook/trademark"
-                className="flex-1 px-3 py-2.5 bg-navy-700 border border-navy-500 rounded-lg text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-accent-blue/50 transition-colors"
-              />
-              <button
-                onClick={testWebhook}
-                className="flex items-center gap-1.5 px-3 py-2 bg-yellow-500/10 border border-yellow-500/30 text-yellow-400 rounded-lg text-sm hover:bg-yellow-500/20 transition-colors whitespace-nowrap"
-              >
-                <Zap className="w-3.5 h-3.5" />
-                Test
-              </button>
-            </div>
-            {webhookTest && (
-              <p className="text-xs text-green-400 mt-1.5 flex items-center gap-1">
-                <Check className="w-3.5 h-3.5" />
-                Webhook OK at {webhookTest.time}
-              </p>
-            )}
-          </div>
-          <div className="space-y-3 pt-1">
-            <Toggle label="Renewal Alerts"    description="Notify 90, 60, and 30 days before expiry"  defaultChecked />
-            <Toggle label="Opposition Notices" description="Immediate alert on new oppositions"       defaultChecked />
-            <Toggle label="Status Changes"    description="Notify on any status transition"            />
-            <Toggle label="New Registrations" description="Notify when marks are registered"          defaultChecked />
-            <Toggle label="Weekly Digest"     description="Summary email every Monday 09:00 UTC"      defaultChecked />
-          </div>
-        </Section>
-      </div>
 
       {/* ── Configure Mark Numbers ── */}
       <div className="bg-navy-800 border border-navy-500 rounded-xl overflow-hidden">
