@@ -33,7 +33,6 @@
  *  Israeli trademarks are valid for 10 years from the application date and renew
  *  in 10-year increments.  There is a 6-month (180-day) grace period after the
  *  expiry date during which renewal can still be filed (with a late fee).
- *  Records within 180 days of expiry carry an `ilpoExpiryAlert` payload.
  *
  * ── Bypass ───────────────────────────────────────────────────────────────────
  *  ?trademarkNumbers=12345,67890  — fetches those specific ILPO mark numbers
@@ -148,39 +147,6 @@ function mapKind(isDevice, regType) {
   return 'Word'
 }
 
-// ── expiry alert ──────────────────────────────────────────────────────────────
-
-/**
- * Build an ilpoExpiryAlert for marks within 180 days of expiry.
- * Israel allows a 6-month grace period for renewals — this is the critical window.
- * Returns null when the mark is not near expiry.
- */
-function buildExpiryAlert(expiryISO) {
-  if (!expiryISO) return null
-  const msLeft  = new Date(expiryISO).getTime() - Date.now()
-  const daysLeft = Math.floor(msLeft / 86_400_000)
-
-  if (daysLeft > 180) return null   // more than 6 months away — no alert
-
-  if (daysLeft < 0) {
-    const daysOver = Math.abs(daysLeft)
-    if (daysOver > 180) return null  // beyond Israel's 6-month grace — mark is lapsed
-    return {
-      daysLeft,
-      graceRemaining: 180 - daysOver,
-      message: `Expired ${daysOver} day${daysOver !== 1 ? 's' : ''} ago. `
-             + `${180 - daysOver} days remain in Israel's 6-month grace period — immediate renewal required.`,
-    }
-  }
-
-  return {
-    daysLeft,
-    graceRemaining: null,
-    message: `Expires in ${daysLeft} day${daysLeft !== 1 ? 's' : ''}. `
-           + `Israel's 6-month grace period begins at expiry — renewal within this ${180}-day window is critical.`,
-  }
-}
-
 // ── record parser ─────────────────────────────────────────────────────────────
 
 function parseRecord(r, holderHint) {
@@ -226,7 +192,6 @@ function parseRecord(r, holderHint) {
     registrationDate: regDate,
     expiryDate      : expDate,
     status,
-    ilpoExpiryAlert : buildExpiryAlert(expDate),
     rawStatus,
   }
 }
@@ -428,15 +393,11 @@ export default async function handler(req, res) {
       results = await searchByHolder(holder)
     }
 
-    // Count of marks needing expiry action
-    const alertCount = results.filter(r => r.ilpoExpiryAlert).length
-
     // 10-minute CDN cache — data.gov.il updates daily
     res.setHeader('Cache-Control', 's-maxage=600, stale-while-revalidate=60')
     return res.status(200).json({
-      count      : results.length,
-      alertCount,
-      results    : results.map(normaliseTrademarkData),
+      count   : results.length,
+      results : results.map(normaliseTrademarkData),
     })
 
   } catch (err) {

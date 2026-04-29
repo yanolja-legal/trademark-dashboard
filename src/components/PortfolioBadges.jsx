@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
-import { differenceInDays, parseISO, isValid, format } from 'date-fns'
-import { AlertTriangle, Clock, Globe } from 'lucide-react'
+import { parseISO, isValid, format } from 'date-fns'
+import { Globe } from 'lucide-react'
 
 // ── style maps ────────────────────────────────────────────────────────────────
 
@@ -36,26 +36,6 @@ export function fmt(str) {
 
 // ── badge sub-components ──────────────────────────────────────────────────────
 
-export function ExpiryCell({ dateStr }) {
-  if (!dateStr) return <span className="text-slate-500">—</span>
-  const d = parseISO(dateStr)
-  if (!isValid(d)) return <span className="text-slate-500">—</span>
-  const days     = differenceInDays(d, new Date())
-  const expired  = days < 0
-  const critical = days >= 0 && days <= 90
-  const upcoming = days > 90 && days <= 180
-  return (
-    <span className={expired ? 'text-red-400' : critical ? 'text-orange-400 font-medium' : upcoming ? 'text-yellow-400' : 'text-slate-300'}>
-      {fmt(dateStr)}
-      {critical && !expired && (
-        <span className="ml-1.5 text-[10px] font-bold px-1 py-0.5 rounded bg-orange-500/15 border border-orange-500/25">
-          {days}d
-        </span>
-      )}
-    </span>
-  )
-}
-
 export function DesignatedCountriesTooltip({ countries }) {
   const [open, setOpen] = useState(false)
   if (!countries || countries.length === 0) return null
@@ -75,128 +55,6 @@ export function DesignatedCountriesTooltip({ countries }) {
             Designated countries ({countries.length})
           </p>
           <p className="font-mono">{countries.join(', ')}</p>
-        </div>
-      )}
-    </span>
-  )
-}
-
-export function IPIndiaWarningBadge({ alert }) {
-  const [open, setOpen] = useState(false)
-  if (!alert) return null
-  const isOpposed = alert.rawStatus === 'Opposed'
-  const badgeCls  = isOpposed ? 'bg-red-500/15 text-red-400 border-red-500/30' : 'bg-amber-500/15 text-amber-400 border-amber-500/30'
-  const labelCls  = isOpposed ? 'text-red-400' : 'text-amber-400'
-  const label     = isOpposed ? 'OPPOSED' : 'OBJECTED'
-  return (
-    <span className="relative inline-flex items-center">
-      <button
-        onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)}
-        onFocus={() => setOpen(true)}       onBlur={() => setOpen(false)}
-        className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold border ${badgeCls}`}
-        aria-label={alert.message}
-      >
-        <AlertTriangle className="w-2.5 h-2.5" />{label}
-      </button>
-      {open && (
-        <div className="absolute bottom-full left-0 mb-1.5 z-50 w-64 p-3 rounded-lg bg-navy-700 border border-navy-400 shadow-xl text-xs text-slate-300 leading-relaxed pointer-events-none">
-          <p className={`font-semibold mb-1 text-[11px] uppercase tracking-wider ${labelCls}`}>
-            IP India — Active Monitoring Required
-          </p>
-          <p>{alert.message}</p>
-        </div>
-      )}
-    </span>
-  )
-}
-
-export function ILPOExpiryBadge({ alert }) {
-  const [open, setOpen] = useState(false)
-  if (!alert) return null
-  const inGrace  = alert.daysLeft < 0
-  const isUrgent = alert.daysLeft <= 30
-  const badgeCls = inGrace || isUrgent ? 'bg-red-500/15 text-red-400 border-red-500/30' : 'bg-amber-500/15 text-amber-400 border-amber-500/30'
-  const labelCls = inGrace || isUrgent ? 'text-red-400' : 'text-amber-400'
-  const label    = inGrace ? `GRACE ${alert.graceRemaining}d` : `RENEW ${alert.daysLeft}d`
-  return (
-    <span className="relative inline-flex items-center">
-      <button
-        onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)}
-        onFocus={() => setOpen(true)}       onBlur={() => setOpen(false)}
-        className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold border ${badgeCls}`}
-        aria-label={alert.message}
-      >
-        <AlertTriangle className="w-2.5 h-2.5" />{label}
-      </button>
-      {open && (
-        <div className="absolute bottom-full left-0 mb-1.5 z-50 w-64 p-3 rounded-lg bg-navy-700 border border-navy-400 shadow-xl text-xs text-slate-300 leading-relaxed pointer-events-none">
-          <p className={`font-semibold mb-1 text-[11px] uppercase tracking-wider ${labelCls}`}>
-            ILPO — {inGrace ? '6-Month Grace Period Active' : 'Renewal Due Soon'}
-          </p>
-          <p>{alert.message}</p>
-        </div>
-      )}
-    </span>
-  )
-}
-
-export function OfficeActionBadge({ pending }) {
-  const [open, setOpen] = useState(false)
-  if (!pending) return null
-  return (
-    <span className="relative inline-flex items-center">
-      <button
-        onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)}
-        onFocus={() => setOpen(true)}       onBlur={() => setOpen(false)}
-        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold border bg-orange-500/15 text-orange-400 border-orange-500/30"
-        aria-label="Pending office action"
-      >
-        <AlertTriangle className="w-2.5 h-2.5" />OA
-      </button>
-      {open && (
-        <div className="absolute bottom-full left-0 mb-1.5 z-50 w-52 p-3 rounded-lg bg-navy-700 border border-navy-400 shadow-xl text-xs text-slate-300 leading-relaxed pointer-events-none">
-          <p className="font-semibold text-orange-400 mb-1 text-[11px] uppercase tracking-wider">Pending Office Action</p>
-          <p>A USPTO office action requires a response. Check TSDR for details.</p>
-        </div>
-      )}
-    </span>
-  )
-}
-
-export function ExpiryFlagBadge({ expiryDate, registry, status }) {
-  const [open, setOpen] = useState(false)
-  if (registry === 'ILPO') return null
-  if (!expiryDate && status !== 'Expiring Soon') return null
-  let days = null
-  if (expiryDate) {
-    try {
-      const d = parseISO(expiryDate)
-      if (!isValid(d)) return null
-      days = differenceInDays(d, new Date())
-      if (days < 0 || days > 90) return null
-    } catch { return null }
-  } else if (status !== 'Expiring Soon') {
-    return null
-  }
-  const isCritical = days !== null && days <= 30
-  const badgeCls   = isCritical ? 'bg-red-500/15 text-red-400 border-red-500/30' : 'bg-orange-500/15 text-orange-400 border-orange-500/30'
-  const label      = days !== null ? `EXPIRING ${days}d` : 'EXPIRING'
-  return (
-    <span className="relative inline-flex items-center">
-      <button
-        onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)}
-        onFocus={() => setOpen(true)}       onBlur={() => setOpen(false)}
-        className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold border ${badgeCls}`}
-        aria-label="Expiring within 90 days"
-      >
-        <Clock className="w-2.5 h-2.5" />{label}
-      </button>
-      {open && (
-        <div className="absolute bottom-full left-0 mb-1.5 z-50 w-52 p-3 rounded-lg bg-navy-700 border border-navy-400 shadow-xl text-xs text-slate-300 leading-relaxed pointer-events-none">
-          <p className={`font-semibold mb-1 text-[11px] uppercase tracking-wider ${isCritical ? 'text-red-400' : 'text-orange-400'}`}>
-            Renewal Due Within 90 Days
-          </p>
-          <p>This mark expires {days !== null ? `in ${days} days` : 'soon'}. File renewal to maintain registration.</p>
         </div>
       )}
     </span>

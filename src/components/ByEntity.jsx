@@ -1,27 +1,8 @@
 import React from 'react'
-import { Building2, AlertTriangle, Clock, RefreshCw } from 'lucide-react'
-import { differenceInDays, parseISO, format, isValid } from 'date-fns'
+import { Building2, Clock, RefreshCw } from 'lucide-react'
+import { format } from 'date-fns'
 import { SUBSIDIARIES } from '../subsidiaries.js'
 import { REGISTRIES }   from '../registries.js'
-
-// ── helpers ───────────────────────────────────────────────────────────────────
-
-function hasFlag(t) {
-  if (t.ipIndiaAlert)        return true
-  if (t.ilpoExpiryAlert)     return true
-  if (t.pendingOfficeAction) return true
-  if (t.status === 'Opposed') return true
-  if (t.expiryDate) {
-    try {
-      const d = parseISO(t.expiryDate)
-      if (isValid(d)) {
-        const days = differenceInDays(d, new Date())
-        if (days >= 0 && days <= 90) return true
-      }
-    } catch { /* skip */ }
-  }
-  return false
-}
 
 const REGISTRY_COLORS = {
   'WIPO Madrid' : 'text-purple-400 border-purple-500/30 bg-purple-500/8',
@@ -41,8 +22,7 @@ function EntityCard({ sub, marks, registryStatus, lastUpdated, onRefreshRegistry
     opposed:    marks.filter(m => m.status === 'Opposed').length,
     expired:    marks.filter(m => m.status === 'Expired').length,
   }
-  const flagCount      = marks.filter(hasFlag).length
-  const isEmpty        = marks.length === 0
+  const isEmpty = marks.length === 0
 
   // Per-registry breakdown — show all API-fetchable registries so refresh buttons are always visible
   const regBreakdown = REGISTRIES
@@ -82,12 +62,6 @@ function EntityCard({ sub, marks, registryStatus, lastUpdated, onRefreshRegistry
             </p>
           </div>
         </div>
-        {flagCount > 0 && (
-          <span className="flex items-center gap-1 px-2.5 py-1 bg-red-500/10 border border-red-500/20 rounded-lg text-xs text-red-400 font-medium flex-shrink-0">
-            <AlertTriangle className="w-3.5 h-3.5" />
-            {flagCount} flag{flagCount !== 1 ? 's' : ''}
-          </span>
-        )}
       </div>
 
       {/* Status breakdown */}
@@ -182,7 +156,7 @@ export default function ByEntity({ data, registryStatus = {}, lastUpdated, onRef
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-navy-600/40 bg-navy-700/30">
-                {['Entity', 'HQ', 'Total', 'Registered', 'Pending', 'Expiring', 'Opposed', 'Expired', 'Flags', 'Registries', 'Jurisdictions'].map((h, i) => (
+                {['Entity', 'HQ', 'Total', 'Registered', 'Pending', 'Expiring', 'Opposed', 'Expired', 'Registries', 'Jurisdictions'].map((h, i) => (
                   <th
                     key={h}
                     className={`px-5 py-3 text-[11px] font-semibold uppercase tracking-wider whitespace-nowrap
@@ -192,7 +166,6 @@ export default function ByEntity({ data, registryStatus = {}, lastUpdated, onRef
                       ${h === 'Expiring'   ? 'text-orange-400/70' : ''}
                       ${h === 'Opposed'    ? 'text-red-400/70'    : ''}
                       ${h === 'Expired'    ? 'text-slate-500'     : ''}
-                      ${h === 'Flags'      ? 'text-red-400/70'    : ''}
                     `}
                   >
                     {h}
@@ -207,10 +180,9 @@ export default function ByEntity({ data, registryStatus = {}, lastUpdated, onRef
                 const expiring   = marks.filter(m => m.status === 'Expiring Soon').length
                 const opposed    = marks.filter(m => m.status === 'Opposed').length
                 const expired    = marks.filter(m => m.status === 'Expired').length
-                const flags    = marks.filter(hasFlag).length
-                const regs     = [...new Set(marks.map(m => m.registry))]
-                const juris    = new Set(marks.map(m => m.country)).size
-                const isEmpty  = marks.length === 0
+                const regs       = [...new Set(marks.map(m => m.registry))]
+                const juris      = new Set(marks.map(m => m.country)).size
+                const isEmpty    = marks.length === 0
                 return (
                   <tr
                     key={sub.id}
@@ -224,14 +196,6 @@ export default function ByEntity({ data, registryStatus = {}, lastUpdated, onRef
                     <td className="px-5 py-3 text-center text-orange-400 font-medium">{expiring   || '—'}</td>
                     <td className="px-5 py-3 text-center text-red-400    font-medium">{opposed    || '—'}</td>
                     <td className="px-5 py-3 text-center text-slate-400  font-medium">{expired    || '—'}</td>
-                    <td className="px-5 py-3 text-center">
-                      {flags > 0
-                        ? <span className="flex items-center justify-center gap-1 text-red-400 font-medium">
-                            <AlertTriangle className="w-3 h-3" />{flags}
-                          </span>
-                        : <span className="text-slate-600">—</span>
-                      }
-                    </td>
                     <td className="px-5 py-3">
                       {regs.length > 0
                         ? <div className="flex flex-wrap gap-1">

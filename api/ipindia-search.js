@@ -28,17 +28,9 @@
  *  https://tmrsearch.ipindia.gov.in/eSearch/Application_View.aspx?AppNo=XXXXXXX
  *
  * ── Status mapping ────────────────────────────────────────────────────────────
- *  "Registered"                          → Active
- *  "Accepted [& Advertised]"             → Pending
- *  "Advertised Before Acceptance"        → Pending
- *  "Formalities Chk Pass"                → Pending
- *  "Send Back for Examination"           → Pending
- *  "Objected"                            → Opposed + ipIndiaAlert (OBJECTED)
- *  "Opposed"                             → Opposed + ipIndiaAlert (OPPOSED)
- *  "Abandoned" / "Removed" / "Refused"   → Expired
- *
- *  Records flagged with ipIndiaAlert require active monitoring — India has
- *  notorious trademark backlogs and status changes happen without notice.
+ *  Raw IP India status values are normalised by src/normalise.js into the
+ *  shared dashboard vocabulary (Registered, Pending, Opposed, Refused,
+ *  Lapsed, Expired).
  */
 
 // ── constants ─────────────────────────────────────────────────────────────────
@@ -95,30 +87,6 @@ function mapKind(raw) {
   if (s.includes('3d'))                                                 return '3D'
   if (s.includes('sound'))                                              return 'Sound'
   return 'Word'   // most IP India marks are word marks
-}
-
-/**
- * Build an ipIndiaAlert object for Objected / Opposed marks.
- * Returns null for all other statuses.
- */
-function buildAlert(rawStatus) {
-  const s = (rawStatus || '').toLowerCase().trim()
-  if (s.includes('objected')) {
-    return {
-      rawStatus: 'Objected',
-      message  : 'Examiner has raised objections. A response is required within the statutory deadline. '
-               + 'IP India has significant processing backlogs — status changes occur without proactive notice.',
-    }
-  }
-  if (s.includes('oppos')) {
-    return {
-      rawStatus: 'Opposed',
-      message  : 'A third-party opposition has been filed. The proceeding is pending resolution. '
-               + 'IP India opposition proceedings can take years — active monitoring is critical as '
-               + 'hearing notices and decisions are not always communicated promptly.',
-    }
-  }
-  return null
 }
 
 // ── HTML form extraction ──────────────────────────────────────────────────────
@@ -275,7 +243,6 @@ function parseTable(html, defaultApplicant) {
       registrationDate: '',
       expiryDate      : isoDate(validUpto),
       status          : mapStatus(rawStatus),
-      ipIndiaAlert    : buildAlert(rawStatus),
       rawStatus       : rawStatus.trim(),
     })
   }
@@ -323,7 +290,6 @@ function parseDetailPage(html, appNo, holderHint) {
     registrationDate: '',
     expiryDate      : validUpto,
     status          : mapStatus(rawStatus),
-    ipIndiaAlert    : buildAlert(rawStatus),
     rawStatus       : rawStatus.trim(),
   }
 }

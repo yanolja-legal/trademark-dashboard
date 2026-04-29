@@ -1,9 +1,8 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
-import { Shield, Bell, BarChart2, Settings, Database, RefreshCw, Building2 } from 'lucide-react'
-import { differenceInDays, parseISO, format, isValid } from 'date-fns'
+import { Shield, BarChart2, Settings, Database, RefreshCw, Building2 } from 'lucide-react'
+import { format } from 'date-fns'
 import Portfolio  from './components/Portfolio'
 import ByEntity   from './components/ByEntity'
-import Alerts     from './components/Alerts'
 import Analytics  from './components/Analytics'
 import ApiSetup   from './components/ApiSetup'
 import { SUBSIDIARIES } from './subsidiaries'
@@ -15,7 +14,6 @@ import { KNOWN_MARKS }  from './knownMarks'
 const TABS = [
   { id: 'portfolio', label: 'Portfolio',  icon: Database  },
   { id: 'entity',    label: 'By Entity',  icon: Building2 },
-  { id: 'alerts',    label: 'Alerts',     icon: Bell      },
   { id: 'analytics', label: 'Analytics',  icon: BarChart2 },
   { id: 'api',       label: 'API Setup',  icon: Settings  },
 ]
@@ -45,21 +43,6 @@ const CURRENT_VERSION = '2'   // bump this to invalidate all clients' cached dat
 })()
 
 // ── helpers ────────────────────────────────────────────────────────────────────
-
-/** Returns true if a trademark record has any flag that requires attention. */
-function hasFlag(t) {
-  if (t.ipIndiaAlert)        return true
-  if (t.ilpoExpiryAlert)     return true
-  if (t.pendingOfficeAction) return true
-  if (t.status === 'Opposed') return true
-  if (t.expiryDate) {
-    try {
-      const d = parseISO(t.expiryDate)
-      if (isValid(d) && differenceInDays(d, new Date()) >= 0 && differenceInDays(d, new Date()) <= 90) return true
-    } catch { /* skip */ }
-  }
-  return false
-}
 
 /** fetch() wrapped with a 15-second AbortController timeout. */
 async function fetchWithTimeout(url, ms = 15000) {
@@ -358,7 +341,6 @@ export default function App() {
     countries:  new Set(combined.map(t => t.country)).size,
   }
 
-  const alertCount   = combined.filter(hasFlag).length
   const isRefreshing = progress !== null
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -435,11 +417,6 @@ export default function App() {
               >
                 <Icon className="w-4 h-4" />
                 {tab.label}
-                {tab.id === 'alerts' && alertCount > 0 && (
-                  <span className="ml-0.5 px-1.5 py-0.5 text-[10px] font-bold rounded-full bg-red-500/20 text-red-400 border border-red-500/30">
-                    {alertCount}
-                  </span>
-                )}
               </button>
             )
           })}
@@ -466,7 +443,6 @@ export default function App() {
             isRefreshing={isRefreshing}
           />
         )}
-        {activeTab === 'alerts'    && <Alerts    data={combined} />}
         {activeTab === 'analytics' && <Analytics data={combined} />}
         {activeTab === 'api'       && (
           <ApiSetup

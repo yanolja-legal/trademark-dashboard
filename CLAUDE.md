@@ -132,26 +132,22 @@ Currently active manual upload countries:
 
 ## DASHBOARD TABS
 1. **Portfolio** — unified trademark table with all registry data
-   - Columns: Applicant, Mark Name, Registry, Country of Filing,
-     Serial No., Reg. No., Kind, NCL, Filed, Published, 
-     Registered, Expires, Status, Flags
+   - Columns: Applicant, Trademark, Registry, Country, App. No.,
+     Reg. No., Type, Filed, Registered, Status
    - Loads empty on start — user clicks Refresh All to fetch
    - Results cached in localStorage with timestamp
    - Manual upload data merged with live API data
 
 2. **By Entity** — one card per subsidiary showing filing counts
-   by registry, registered/pending/lapsed breakdown, last fetch time
+   by registry, registered/pending/expiring/opposed/expired breakdown,
+   last fetch time
 
-3. **Alerts** — auto-populated from live data:
-   - Marks expiring within 90 days
-   - Marks with Objected/Opposed status
-
-4. **Analytics** — charts from live data:
+3. **Analytics** — charts from live data:
    - Status distribution donut chart
    - Filings over time line chart
    - NCL class breakdown horizontal bar chart
 
-5. **API Setup** — single control panel for ALL data sources:
+4. **API Setup** — single control panel for ALL data sources:
    - Live API registry status cards with Test Connection buttons
    - Universal CSV upload manager (any country, same template)
    - Download CSV template button

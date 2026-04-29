@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react'
 import {
-  Search, X, Globe, Loader2, AlertTriangle, Clock, RefreshCw, Download,
+  Search, X, Loader2, Clock, RefreshCw, Download,
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { REGISTRIES } from '../registries'
@@ -109,11 +109,9 @@ export default function Portfolio({ data, registryStatus = {}, progress, lastUpd
     { label: 'Expired',       value: summary.expired,    color: 'text-slate-400'   },
   ]
 
-  const isRefreshing     = progress !== null
-  const pendingRegs      = REGISTRIES.filter(r => !r.hidden && registryStatus[r.id]?.status === 'pending')
-  const errorRegs        = REGISTRIES.filter(r => !r.hidden && registryStatus[r.id]?.status === 'error')
-  const indiaAlertCount  = data.filter(r => r.ipIndiaAlert).length
-  const ilpoExpiryCount  = data.filter(r => r.ilpoExpiryAlert).length
+  const isRefreshing = progress !== null
+  const pendingRegs  = REGISTRIES.filter(r => !r.hidden && registryStatus[r.id]?.status === 'pending')
+  const errorRegs    = REGISTRIES.filter(r => !r.hidden && registryStatus[r.id]?.status === 'error')
 
   return (
     <div className="space-y-4">
@@ -187,26 +185,6 @@ export default function Portfolio({ data, registryStatus = {}, progress, lastUpd
           </span>
         </div>
       ))}
-
-      {/* ILPO expiry banner */}
-      {ilpoExpiryCount > 0 && (
-        <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-teal-500/10 border border-teal-500/25 text-teal-400 text-sm">
-          <AlertTriangle className="w-4 h-4 flex-shrink-0" />
-          <span>
-            <strong>{ilpoExpiryCount}</strong> Israeli mark{ilpoExpiryCount !== 1 ? 's are' : ' is'} within the 180-day renewal window — Israel's 6-month grace period is the critical action deadline.
-          </span>
-        </div>
-      )}
-
-      {/* IP India monitoring banner */}
-      {indiaAlertCount > 0 && (
-        <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-orange-500/10 border border-orange-500/25 text-orange-400 text-sm">
-          <AlertTriangle className="w-4 h-4 flex-shrink-0" />
-          <span>
-            <strong>{indiaAlertCount}</strong> IP India mark{indiaAlertCount !== 1 ? 's require' : ' requires'} active monitoring — objected or opposed marks in a registry with known processing backlogs.
-          </span>
-        </div>
-      )}
 
       {/* Summary cards */}
       <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
