@@ -13,18 +13,6 @@
  */
 export const REGISTRIES = [
   {
-    id:             'euipo',
-    label:          'EUIPO',
-    value:          'EUIPO',
-    fetchStrategy:  'none',
-    apiPath:        null,
-    queryParam:     null,
-    searchKeyField: 'euipoSearchKey',
-    knownMarksKey:  'euipo',
-    requiresKey:    true,
-    note:           'EU Intellectual Property Office — temporarily inactive; revisit when API access is confirmed',
-  },
-  {
     id:            'wipo',
     label:         'WIPO Madrid',
     value:         'WIPO Madrid',

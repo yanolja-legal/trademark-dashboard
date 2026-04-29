@@ -127,7 +127,7 @@ Currently active manual upload countries:
 ### Removed / Pending Decision
 | Registry | Reason |
 |---|---|
-| EUIPO | Removed — alternative solution being evaluated |
+| EUIPO | Removed — no longer in scope |
 | Marker API (USPTO) | Removed — service shut down |
 
 ## DASHBOARD TABS
@@ -159,8 +159,10 @@ Currently active manual upload countries:
 
 ## API ROUTES (in /api folder)
 - /api/wipo-search — WIPO Madrid Monitor public API (IR number fetch)
-- /api/kipris-search — KIPRIS Open API (pending key)
-- /api/euipo-callback — OAuth callback placeholder (kept for future)
+- /api/kipris-search — KIPRIS Open API Korea (pending key)
+- /api/kipris-us-search — KIPRIS Foreign Trademark Search for USPTO (pending key)
+- /api/ipindia-search — IP India search placeholder (CSV upload used in practice)
+- /api/ilpo-search — ILPO Israel search placeholder (CSV upload used in practice)
 
 ## KEY DESIGN DECISIONS
 - Dark theme: deep navy (#0d0f14) background, electric blue/green accents
@@ -185,9 +187,6 @@ Currently active manual upload countries:
 | KIPRIS_API_KEY | Add when approved | Pending |
 
 ## REMOVED ENVIRONMENT VARIABLES
-- EUIPO_CLIENT_ID — removed
-- EUIPO_CLIENT_SECRET — removed
-- EUIPO_ENV — removed
 - MARKER_API_USERNAME — removed (service shut down)
 - MARKER_API_PASSWORD — removed (service shut down)
 
@@ -197,7 +196,7 @@ Currently active manual upload countries:
 - KIPRIS may also provide WIPO data — confirm on API approval
 - IP India: CAPTCHA blocking — no programmatic access possible
 - ILPO Israel: no public API exists
-- EUIPO: removed pending alternative solution decision
+- EUIPO: fully removed from scope (2026-04-29)
 - Google Workspace hosting considered but kept on Vercel —
   Google SSO to be evaluated with security team
 - Git user email must be: heewoong.park@yanolja.com
@@ -207,7 +206,6 @@ Currently active manual upload countries:
 
 ## NEXT STEPS PENDING
 1. KIPRIS API key approval — will cover Korea + US + possibly WIPO
-2. EUIPO alternative solution — to be determined
-3. Google SSO decision from security team
-4. WIPO holder name search solution — explore TMview API 
+2. Google SSO decision from security team
+3. WIPO holder name search solution — explore TMview API 
    or WIPO eMadrid rights holder access
