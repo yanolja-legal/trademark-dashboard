@@ -13,7 +13,7 @@ const PAGE_SIZE = 10
 
 const SORT_OPTIONS = [
   { label: 'Applicant',  key: 'applicant'        },
-  { label: 'Mark Name',  key: 'markName'          },
+  { label: 'Trademark',  key: 'markName'          },
   { label: 'Filed',      key: 'applicationDate'   },
   { label: 'Registry',   key: 'registry'          },
   { label: 'Status',     key: 'status'            },
@@ -73,15 +73,14 @@ export default function Portfolio({ data, registryStatus = {}, progress, lastUpd
   }
 
   function downloadCSV() {
-    const headers = ['Applicant','Mark Name','Registry','Country','Serial No.','Reg. No.','Kind','NCL','Filed','Published','Registered','Expires','Status']
+    const headers = ['Applicant','Trademark','Registry','Country','App. No.','Reg. No.','Type','Filed','Registered','Status']
     const esc     = v => `"${String(v ?? '').replace(/"/g, '""')}"`
     const lines   = [
       headers.join(','),
       ...filtered.map(t => [
         t.applicant, t.markName, t.registry, t.country,
-        t.serialNo, t.regNo, t.kindOfMark, t.ncl,
-        fmt(t.applicationDate), fmt(t.publicationDate),
-        fmt(t.registrationDate), fmt(t.expiryDate), t.status,
+        t.serialNo, t.regNo, t.kindOfMark,
+        fmt(t.applicationDate), fmt(t.registrationDate), t.status,
       ].map(esc).join(',')),
     ]
     const blob = new Blob(['﻿' + lines.join('\n')], { type: 'text/csv;charset=utf-8;' })
@@ -94,20 +93,20 @@ export default function Portfolio({ data, registryStatus = {}, progress, lastUpd
   }
 
   const summary = {
-    total:    data.length,
-    active:   data.filter(t => t.status === 'Active').length,
-    pending:  data.filter(t => t.status === 'Pending').length,
-    expiring: data.filter(t => t.status === 'Expiring Soon').length,
-    opposed:  data.filter(t => t.status === 'Opposed').length,
-    expired:  data.filter(t => t.status === 'Expired').length,
+    total:      data.length,
+    registered: data.filter(t => t.status === 'Registered').length,
+    pending:    data.filter(t => t.status === 'Pending').length,
+    expiring:   data.filter(t => t.status === 'Expiring Soon').length,
+    opposed:    data.filter(t => t.status === 'Opposed').length,
+    expired:    data.filter(t => t.status === 'Expired').length,
   }
   const summaryCards = [
-    { label: 'Total',         value: summary.total,    color: 'text-accent-blue' },
-    { label: 'Active',        value: summary.active,   color: 'text-green-400'   },
-    { label: 'Pending',       value: summary.pending,  color: 'text-yellow-400'  },
-    { label: 'Expiring Soon', value: summary.expiring, color: 'text-orange-400'  },
-    { label: 'Opposed',       value: summary.opposed,  color: 'text-red-400'     },
-    { label: 'Expired',       value: summary.expired,  color: 'text-slate-400'   },
+    { label: 'Total',         value: summary.total,      color: 'text-accent-blue' },
+    { label: 'Registered',    value: summary.registered, color: 'text-green-400'   },
+    { label: 'Pending',       value: summary.pending,    color: 'text-yellow-400'  },
+    { label: 'Expiring Soon', value: summary.expiring,   color: 'text-orange-400'  },
+    { label: 'Opposed',       value: summary.opposed,    color: 'text-red-400'     },
+    { label: 'Expired',       value: summary.expired,    color: 'text-slate-400'   },
   ]
 
   const isRefreshing     = progress !== null

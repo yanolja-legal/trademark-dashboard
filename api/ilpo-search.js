@@ -53,6 +53,8 @@
 
 // ── constants ─────────────────────────────────────────────────────────────────
 
+import { normaliseTrademarkData } from '../src/normalise.js'
+
 const CKAN_BASE     = 'https://data.gov.il/api/3/action'
 const TM_RESOURCE   = '6284d4a9-fdd4-45c9-a1d6-58143c7d8127'
 const HOLD_RESOURCE = 'd4a365c7-357a-4172-8815-1a6650e848e2'
@@ -434,7 +436,7 @@ export default async function handler(req, res) {
     return res.status(200).json({
       count      : results.length,
       alertCount,
-      results,
+      results    : results.map(normaliseTrademarkData),
     })
 
   } catch (err) {

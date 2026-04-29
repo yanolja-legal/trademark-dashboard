@@ -45,6 +45,8 @@
  *   </response>
  */
 
+import { normaliseTrademarkData } from '../src/normalise.js'
+
 export const config = { runtime: 'nodejs' }
 
 // ── constants ─────────────────────────────────────────────────────────────────
@@ -305,7 +307,7 @@ export default async function handler(req, res) {
       .filter(r => r.serialNo || r.markName !== '—')
 
     res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate=300')
-    return res.status(200).json({ count: results.length, results })
+    return res.status(200).json({ count: results.length, results: results.map(normaliseTrademarkData) })
 
   } catch (err) {
     console.error('[kipris-search]', err.message)

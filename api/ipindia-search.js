@@ -43,6 +43,8 @@
 
 // ── constants ─────────────────────────────────────────────────────────────────
 
+import { normaliseTrademarkData } from '../src/normalise.js'
+
 const ESEARCH_URL    = 'https://tmrsearch.ipindia.gov.in/ESEARCH/'
 const DETAIL_BASE    = 'https://tmrsearch.ipindia.gov.in/eSearch/Application_View.aspx'
 const TIMEOUT_MS     = 35_000    // IP India can be very slow
@@ -487,7 +489,7 @@ export default async function handler(req, res) {
 
     // 5-minute CDN cache — balance freshness against slow registry
     res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate=60')
-    return res.status(200).json({ count: results.length, results })
+    return res.status(200).json({ count: results.length, results: results.map(normaliseTrademarkData) })
 
   } catch (err) {
     console.error('[ipindia-search]', err.message)

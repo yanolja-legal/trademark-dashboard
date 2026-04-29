@@ -352,10 +352,10 @@ export default function App() {
   // ── Derived stats ──────────────────────────────────────────────────────────
 
   const stats = {
-    total:     combined.length,
-    active:    combined.filter(t => t.status === 'Active').length,
-    pending:   combined.filter(t => t.status === 'Pending').length,
-    countries: new Set(combined.map(t => t.country)).size,
+    total:      combined.length,
+    registered: combined.filter(t => t.status === 'Registered').length,
+    pending:    combined.filter(t => t.status === 'Pending').length,
+    countries:  new Set(combined.map(t => t.country)).size,
   }
 
   const alertCount   = combined.filter(hasFlag).length
@@ -382,10 +382,10 @@ export default function App() {
           <div className="flex items-center gap-5">
             <div className="hidden sm:grid grid-cols-4 gap-5 text-center">
               {[
-                { label: 'Total',     value: stats.total,     color: 'text-accent-blue'  },
-                { label: 'Active',    value: stats.active,    color: 'text-accent-green' },
-                { label: 'Pending',   value: stats.pending,   color: 'text-yellow-400'   },
-                { label: 'Countries', value: stats.countries, color: 'text-purple-400'   },
+                { label: 'Total',      value: stats.total,      color: 'text-accent-blue'  },
+                { label: 'Registered', value: stats.registered, color: 'text-accent-green' },
+                { label: 'Pending',    value: stats.pending,    color: 'text-yellow-400'   },
+                { label: 'Countries',  value: stats.countries,  color: 'text-purple-400'   },
               ].map(s => (
                 <div key={s.label}>
                   <p className={`text-xl font-bold ${s.color}`}>{s.value}</p>

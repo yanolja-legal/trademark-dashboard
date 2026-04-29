@@ -35,11 +35,11 @@ const REGISTRY_COLORS = {
 
 function EntityCard({ sub, marks, registryStatus, lastUpdated, onRefreshRegistry, isRefreshing }) {
   const counts = {
-    active:   marks.filter(m => m.status === 'Active').length,
-    pending:  marks.filter(m => m.status === 'Pending').length,
-    expiring: marks.filter(m => m.status === 'Expiring Soon').length,
-    opposed:  marks.filter(m => m.status === 'Opposed').length,
-    expired:  marks.filter(m => m.status === 'Expired').length,
+    registered: marks.filter(m => m.status === 'Registered').length,
+    pending:    marks.filter(m => m.status === 'Pending').length,
+    expiring:   marks.filter(m => m.status === 'Expiring Soon').length,
+    opposed:    marks.filter(m => m.status === 'Opposed').length,
+    expired:    marks.filter(m => m.status === 'Expired').length,
   }
   const flagCount      = marks.filter(hasFlag).length
   const isEmpty        = marks.length === 0
@@ -56,11 +56,11 @@ function EntityCard({ sub, marks, registryStatus, lastUpdated, onRefreshRegistry
   const countries = [...new Set(marks.map(m => m.country))]
 
   const statBadges = [
-    { label: 'Active',   value: counts.active,   cls: 'text-green-400  bg-green-500/10  border-green-500/20'  },
-    { label: 'Pending',  value: counts.pending,  cls: 'text-yellow-400 bg-yellow-500/10 border-yellow-500/20' },
-    { label: 'Expiring', value: counts.expiring, cls: 'text-orange-400 bg-orange-500/10 border-orange-500/20' },
-    { label: 'Opposed',  value: counts.opposed,  cls: 'text-red-400    bg-red-500/10    border-red-500/20'    },
-    { label: 'Expired',  value: counts.expired,  cls: 'text-slate-400  bg-slate-500/10  border-slate-500/20'  },
+    { label: 'Registered', value: counts.registered, cls: 'text-green-400  bg-green-500/10  border-green-500/20'  },
+    { label: 'Pending',    value: counts.pending,    cls: 'text-yellow-400 bg-yellow-500/10 border-yellow-500/20' },
+    { label: 'Expiring',   value: counts.expiring,   cls: 'text-orange-400 bg-orange-500/10 border-orange-500/20' },
+    { label: 'Opposed',    value: counts.opposed,    cls: 'text-red-400    bg-red-500/10    border-red-500/20'    },
+    { label: 'Expired',    value: counts.expired,    cls: 'text-slate-400  bg-slate-500/10  border-slate-500/20'  },
   ]
 
   return (
@@ -182,17 +182,17 @@ export default function ByEntity({ data, registryStatus = {}, lastUpdated, onRef
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-navy-600/40 bg-navy-700/30">
-                {['Entity', 'HQ', 'Total', 'Active', 'Pending', 'Expiring', 'Opposed', 'Expired', 'Flags', 'Registries', 'Jurisdictions'].map((h, i) => (
+                {['Entity', 'HQ', 'Total', 'Registered', 'Pending', 'Expiring', 'Opposed', 'Expired', 'Flags', 'Registries', 'Jurisdictions'].map((h, i) => (
                   <th
                     key={h}
                     className={`px-5 py-3 text-[11px] font-semibold uppercase tracking-wider whitespace-nowrap
                       ${i <= 1 ? 'text-left text-slate-400' : i === 2 ? 'text-center text-slate-400' : 'text-center'}
-                      ${h === 'Active'   ? 'text-green-400/70'  : ''}
-                      ${h === 'Pending'  ? 'text-yellow-400/70' : ''}
-                      ${h === 'Expiring' ? 'text-orange-400/70' : ''}
-                      ${h === 'Opposed'  ? 'text-red-400/70'    : ''}
-                      ${h === 'Expired'  ? 'text-slate-500'     : ''}
-                      ${h === 'Flags'    ? 'text-red-400/70'    : ''}
+                      ${h === 'Registered' ? 'text-green-400/70'  : ''}
+                      ${h === 'Pending'    ? 'text-yellow-400/70' : ''}
+                      ${h === 'Expiring'   ? 'text-orange-400/70' : ''}
+                      ${h === 'Opposed'    ? 'text-red-400/70'    : ''}
+                      ${h === 'Expired'    ? 'text-slate-500'     : ''}
+                      ${h === 'Flags'      ? 'text-red-400/70'    : ''}
                     `}
                   >
                     {h}
@@ -202,11 +202,11 @@ export default function ByEntity({ data, registryStatus = {}, lastUpdated, onRef
             </thead>
             <tbody>
               {entities.map(({ sub, marks }) => {
-                const active   = marks.filter(m => m.status === 'Active').length
-                const pending  = marks.filter(m => m.status === 'Pending').length
-                const expiring = marks.filter(m => m.status === 'Expiring Soon').length
-                const opposed  = marks.filter(m => m.status === 'Opposed').length
-                const expired  = marks.filter(m => m.status === 'Expired').length
+                const registered = marks.filter(m => m.status === 'Registered').length
+                const pending    = marks.filter(m => m.status === 'Pending').length
+                const expiring   = marks.filter(m => m.status === 'Expiring Soon').length
+                const opposed    = marks.filter(m => m.status === 'Opposed').length
+                const expired    = marks.filter(m => m.status === 'Expired').length
                 const flags    = marks.filter(hasFlag).length
                 const regs     = [...new Set(marks.map(m => m.registry))]
                 const juris    = new Set(marks.map(m => m.country)).size
@@ -219,11 +219,11 @@ export default function ByEntity({ data, registryStatus = {}, lastUpdated, onRef
                     <td className="px-5 py-3 font-medium text-white whitespace-nowrap">{sub.name}</td>
                     <td className="px-5 py-3 text-xs text-slate-400 whitespace-nowrap">{sub.country}</td>
                     <td className="px-5 py-3 text-center font-bold text-slate-200">{marks.length || '—'}</td>
-                    <td className="px-5 py-3 text-center text-green-400  font-medium">{active   || '—'}</td>
-                    <td className="px-5 py-3 text-center text-yellow-400 font-medium">{pending  || '—'}</td>
-                    <td className="px-5 py-3 text-center text-orange-400 font-medium">{expiring || '—'}</td>
-                    <td className="px-5 py-3 text-center text-red-400    font-medium">{opposed  || '—'}</td>
-                    <td className="px-5 py-3 text-center text-slate-400  font-medium">{expired  || '—'}</td>
+                    <td className="px-5 py-3 text-center text-green-400  font-medium">{registered || '—'}</td>
+                    <td className="px-5 py-3 text-center text-yellow-400 font-medium">{pending    || '—'}</td>
+                    <td className="px-5 py-3 text-center text-orange-400 font-medium">{expiring   || '—'}</td>
+                    <td className="px-5 py-3 text-center text-red-400    font-medium">{opposed    || '—'}</td>
+                    <td className="px-5 py-3 text-center text-slate-400  font-medium">{expired    || '—'}</td>
                     <td className="px-5 py-3 text-center">
                       {flags > 0
                         ? <span className="flex items-center justify-center gap-1 text-red-400 font-medium">

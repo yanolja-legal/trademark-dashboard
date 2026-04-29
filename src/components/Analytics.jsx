@@ -7,11 +7,13 @@ import {
 const PALETTE = ['#00b4d8', '#00ff88', '#a855f7', '#fbbf24', '#f97316', '#ef4444', '#06b6d4', '#10b981']
 
 const STATUS_COLORS = {
-  'Active':        '#00ff88',
+  'Registered':    '#00ff88',
   'Pending':       '#fbbf24',
-  'Expiring Soon': '#f97316',
   'Opposed':       '#ef4444',
+  'Refused':       '#fb7185',
+  'Lapsed':        '#6b7280',
   'Expired':       '#6b7280',
+  'Expiring Soon': '#f97316',
 }
 
 const GRID   = { strokeDasharray: '3 3', stroke: '#1e3a5f' }
@@ -85,10 +87,12 @@ export default function Analytics({ data }) {
       .replace(' Corp.', '')
     return {
       name:            short,
-      Active:          marks.filter(m => m.status === 'Active').length,
+      Registered:      marks.filter(m => m.status === 'Registered').length,
       Pending:         marks.filter(m => m.status === 'Pending').length,
       'Expiring Soon': marks.filter(m => m.status === 'Expiring Soon').length,
       Opposed:         marks.filter(m => m.status === 'Opposed').length,
+      Refused:         marks.filter(m => m.status === 'Refused').length,
+      Lapsed:          marks.filter(m => m.status === 'Lapsed').length,
       Expired:         marks.filter(m => m.status === 'Expired').length,
     }
   })
@@ -179,10 +183,12 @@ export default function Analytics({ data }) {
             <YAxis tick={TICK} {...AXIS} allowDecimals={false} />
             <Tooltip content={<Tip />} />
             <Legend formatter={v => <span style={{ color: '#94a3b8', fontSize: '12px' }}>{v}</span>} />
-            <Bar dataKey="Active"        stackId="s" fill={STATUS_COLORS['Active']}        />
+            <Bar dataKey="Registered"    stackId="s" fill={STATUS_COLORS['Registered']}    />
             <Bar dataKey="Pending"       stackId="s" fill={STATUS_COLORS['Pending']}       />
             <Bar dataKey="Expiring Soon" stackId="s" fill={STATUS_COLORS['Expiring Soon']} />
             <Bar dataKey="Opposed"       stackId="s" fill={STATUS_COLORS['Opposed']}       />
+            <Bar dataKey="Refused"       stackId="s" fill={STATUS_COLORS['Refused']}       />
+            <Bar dataKey="Lapsed"        stackId="s" fill={STATUS_COLORS['Lapsed']}        />
             <Bar dataKey="Expired"       stackId="s" fill={STATUS_COLORS['Expired']}       radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>

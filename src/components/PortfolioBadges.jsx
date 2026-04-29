@@ -5,11 +5,13 @@ import { AlertTriangle, Clock, Globe } from 'lucide-react'
 // ── style maps ────────────────────────────────────────────────────────────────
 
 export const STATUS_STYLES = {
-  'Active':        'bg-green-500/10 text-green-400 border-green-500/20',
+  'Registered':    'bg-green-500/10 text-green-400 border-green-500/20',
   'Pending':       'bg-yellow-500/10 text-yellow-400 border-yellow-500/20',
-  'Expiring Soon': 'bg-orange-500/10 text-orange-400 border-orange-500/20',
   'Opposed':       'bg-red-500/10 text-red-400 border-red-500/20',
+  'Refused':       'bg-rose-500/10 text-rose-400 border-rose-500/20',
+  'Lapsed':        'bg-slate-500/10 text-slate-400 border-slate-500/20',
   'Expired':       'bg-slate-500/10 text-slate-400 border-slate-500/20',
+  'Expiring Soon': 'bg-orange-500/10 text-orange-400 border-orange-500/20',
 }
 
 export const REGISTRY_STYLES = {

@@ -44,6 +44,8 @@
 
 // ── constants ────────────────────────────────────────────────────────────────
 
+import { normaliseTrademarkData } from '../src/normalise.js'
+
 const SHOW_DATA_BASE = 'https://www3.wipo.int/madrid/monitor/en/showData.jsp'
 const TMXML_BASE     = 'https://www.wipo.int/madrid/monitor/api/v1/tmxml/data'
 const PAGE_SIZE      = 50
@@ -560,7 +562,7 @@ export default async function handler(req, res) {
 
     // 10-minute CDN cache — Madrid Monitor data changes infrequently
     res.setHeader('Cache-Control', 's-maxage=600, stale-while-revalidate=60')
-    return res.status(200).json({ count: results.length, results })
+    return res.status(200).json({ count: results.length, results: results.map(normaliseTrademarkData) })
 
   } catch (err) {
     console.error('[wipo-search]', err.message)

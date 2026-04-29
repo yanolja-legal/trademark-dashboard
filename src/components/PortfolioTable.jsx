@@ -1,26 +1,21 @@
 import React from 'react'
 import { ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react'
 import {
-  fmt, ExpiryCell, DesignatedCountriesTooltip,
-  IPIndiaWarningBadge, ILPOExpiryBadge, OfficeActionBadge, ExpiryFlagBadge,
+  fmt, DesignatedCountriesTooltip,
   STATUS_STYLES, REGISTRY_STYLES, REGISTRY_DEFAULT,
 } from './PortfolioBadges'
 
 const COLUMNS = [
-  { key: 'applicant',        label: 'Applicant',      w: '160px' },
-  { key: 'markName',         label: 'Mark Name',      w: '160px' },
-  { key: 'registry',         label: 'Registry',       w: '105px' },
-  { key: 'country',          label: 'Country',        w: '150px' },
-  { key: 'serialNo',         label: 'Serial No.',     w: '130px' },
-  { key: 'regNo',            label: 'Reg. No.',       w: '120px' },
-  { key: 'kindOfMark',       label: 'Kind',           w: '90px'  },
-  { key: 'ncl',              label: 'NCL',            w: '80px'  },
-  { key: 'applicationDate',  label: 'Filed',          w: '110px' },
-  { key: 'publicationDate',  label: 'Published',      w: '110px' },
-  { key: 'registrationDate', label: 'Registered',     w: '110px' },
-  { key: 'expiryDate',       label: 'Expires',        w: '130px' },
-  { key: 'status',           label: 'Status',         w: '140px' },
-  { key: 'flags',            label: 'Flags',          w: '180px' },
+  { key: 'applicant',        label: 'Applicant',  w: '160px' },
+  { key: 'markName',         label: 'Trademark',  w: '160px' },
+  { key: 'registry',         label: 'Registry',   w: '105px' },
+  { key: 'country',          label: 'Country',    w: '150px' },
+  { key: 'serialNo',         label: 'App. No.',   w: '130px' },
+  { key: 'regNo',            label: 'Reg. No.',   w: '120px' },
+  { key: 'kindOfMark',       label: 'Type',       w: '90px'  },
+  { key: 'applicationDate',  label: 'Filed',      w: '110px' },
+  { key: 'registrationDate', label: 'Registered', w: '110px' },
+  { key: 'status',           label: 'Status',     w: '140px' },
 ]
 
 /**
@@ -61,21 +56,17 @@ export default function PortfolioTable({
               {COLUMNS.map(col => (
                 <th
                   key={col.key}
-                  onClick={() => col.key !== 'flags' && onSort(col.key)}
+                  onClick={() => onSort(col.key)}
                   style={{ minWidth: col.w }}
-                  className={`px-4 py-3 text-left text-[11px] font-semibold text-slate-400 uppercase tracking-wider transition-colors select-none whitespace-nowrap
-                    ${col.key !== 'flags' ? 'cursor-pointer hover:text-accent-blue' : 'cursor-default'}
-                  `}
+                  className="px-4 py-3 text-left text-[11px] font-semibold text-slate-400 uppercase tracking-wider transition-colors select-none whitespace-nowrap cursor-pointer hover:text-accent-blue"
                 >
                   <span className="flex items-center gap-1">
                     {col.label}
-                    {col.key !== 'flags' && (
-                      sortKey === col.key
-                        ? sortDir === 'asc'
-                          ? <ChevronUp   className="w-3.5 h-3.5 text-accent-blue flex-shrink-0" />
-                          : <ChevronDown className="w-3.5 h-3.5 text-accent-blue flex-shrink-0" />
-                        : <ChevronUp className="w-3.5 h-3.5 opacity-0 flex-shrink-0" />
-                    )}
+                    {sortKey === col.key
+                      ? sortDir === 'asc'
+                        ? <ChevronUp   className="w-3.5 h-3.5 text-accent-blue flex-shrink-0" />
+                        : <ChevronDown className="w-3.5 h-3.5 text-accent-blue flex-shrink-0" />
+                      : <ChevronUp className="w-3.5 h-3.5 opacity-0 flex-shrink-0" />}
                   </span>
                 </th>
               ))}
@@ -85,7 +76,7 @@ export default function PortfolioTable({
             {rows.map(tm => (
               <tr
                 key={tm.id}
-                className={`border-b border-navy-600/40 hover:bg-navy-700/30 transition-colors ${tm.status === 'Expired' ? 'opacity-50' : ''}`}
+                className={`border-b border-navy-600/40 hover:bg-navy-700/30 transition-colors ${tm.status === 'Expired' || tm.status === 'Lapsed' ? 'opacity-50' : ''}`}
               >
                 <td className="px-4 py-3 text-slate-300 whitespace-nowrap">{tm.applicant}</td>
                 <td className="px-4 py-3 font-semibold text-white whitespace-nowrap">{tm.markName}</td>
@@ -113,25 +104,13 @@ export default function PortfolioTable({
                 <td className="px-4 py-3 font-mono text-xs text-slate-400 whitespace-nowrap">{tm.serialNo || '—'}</td>
                 <td className="px-4 py-3 font-mono text-xs text-slate-400 whitespace-nowrap">{tm.regNo || '—'}</td>
                 <td className="px-4 py-3 text-slate-300 whitespace-nowrap">{tm.kindOfMark}</td>
-                <td className="px-4 py-3 font-mono text-xs text-slate-400 whitespace-nowrap">{tm.ncl}</td>
                 <td className="px-4 py-3 text-xs text-slate-400 whitespace-nowrap">{fmt(tm.applicationDate)}</td>
-                <td className="px-4 py-3 text-xs text-slate-400 whitespace-nowrap">{fmt(tm.publicationDate)}</td>
                 <td className="px-4 py-3 text-xs text-slate-400 whitespace-nowrap">{fmt(tm.registrationDate)}</td>
-                <td className="px-4 py-3 text-xs whitespace-nowrap"><ExpiryCell dateStr={tm.expiryDate} /></td>
 
                 <td className="px-4 py-3 whitespace-nowrap">
-                  <span className={`px-2.5 py-1 rounded-full text-xs font-medium border ${STATUS_STYLES[tm.status] || STATUS_STYLES['Active']}`}>
+                  <span className={`px-2.5 py-1 rounded-full text-xs font-medium border ${STATUS_STYLES[tm.status] || STATUS_STYLES['Registered']}`}>
                     {tm.status}
                   </span>
-                </td>
-
-                <td className="px-4 py-3 whitespace-nowrap">
-                  <div className="flex flex-wrap items-center gap-1">
-                    <ExpiryFlagBadge    expiryDate={tm.expiryDate} registry={tm.registry} status={tm.status} />
-                    <OfficeActionBadge  pending={tm.pendingOfficeAction} />
-                    <IPIndiaWarningBadge alert={tm.ipIndiaAlert} />
-                    <ILPOExpiryBadge   alert={tm.ilpoExpiryAlert} />
-                  </div>
                 </td>
               </tr>
             ))}

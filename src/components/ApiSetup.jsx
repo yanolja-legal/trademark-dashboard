@@ -4,6 +4,7 @@ import { format } from 'date-fns'
 import { SUBSIDIARIES } from '../subsidiaries.js'
 import { REGISTRIES }   from '../registries.js'
 import { KNOWN_MARKS }  from '../knownMarks.js'
+import { normaliseTrademarkData } from '../normalise.js'
 
 // ── CSV helpers ───────────────────────────────────────────────────────────────
 
@@ -50,15 +51,8 @@ function normaliseCsvRow(row, uploadMeta, idx) {
   const publicationDate  = get('publication_date', 'pub_date')
   const registrationDate = get('registration_date', 'registered')
   const expiryDate       = get('expiry_date', 'expiry', 'valid_until', 'renewal_date')
-  const rawStatus        = get('current_status', 'status', 'trademark_status')
-  const s = (rawStatus || '').toLowerCase()
-  let status = 'Unknown'
-  if (s.includes('registered') || s.includes('active'))                           status = 'Active'
-  else if (s.includes('pending') || s.includes('filed') || s.includes('object'))  status = 'Pending'
-  else if (s.includes('expir'))                                                    status = 'Expired'
-  else if (s.includes('oppos') || s.includes('refus'))                            status = 'Opposed'
-  else if (rawStatus) status = rawStatus.charAt(0).toUpperCase() + rawStatus.slice(1).toLowerCase()
-  return {
+  const status = get('current_status', 'status', 'trademark_status')
+  return normaliseTrademarkData({
     id:               `csv-${uploadMeta.id}-${appNo || idx}`,
     uploadId:         uploadMeta.id,
     uploadLabel:      uploadMeta.label,
@@ -76,7 +70,7 @@ function normaliseCsvRow(row, uploadMeta, idx) {
     expiryDate,
     status,
     source:           'csv',
-  }
+  })
 }
 
 // Download a pre-formatted 13-column template with 2 example rows.
@@ -89,7 +83,7 @@ function downloadCsvTemplate() {
   const ex1 = [
     'Yanolja Co., Ltd.', 'YANOLJA', 'APP-2022-001234', 'REG-2023-005678', 'Word',
     '9, 42', 'India', 'IP India', '2022-03-15', '2022-09-20',
-    '2023-01-10', '2033-01-10', 'Active',
+    '2023-01-10', '2033-01-10', 'Registered',
   ]
   const ex2 = [
     'Yanolja Co., Ltd.', 'YANOLJA & Device', 'APP-2022-001235', '', 'Device',
