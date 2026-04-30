@@ -17,6 +17,7 @@
  *  registry is fixed to 'WIPO Madrid'.
  */
 
+import { gzipSync } from 'node:zlib'
 import { normaliseTrademarkData } from '../src/normalise.js'
 
 // ── constants ────────────────────────────────────────────────────────────────
@@ -84,8 +85,12 @@ async function getQueryToken(holder) {
   form.append('STATUS', 'Active')
   const res = await fetchT(SELECT_URL, {
     method : 'POST',
-    headers: { ...HEADERS, 'Content-Type': 'application/x-www-form-urlencoded' },
-    body   : form.toString(),
+    headers: {
+      ...HEADERS,
+      'Content-Type'    : 'application/x-www-form-urlencoded',
+      'Content-Encoding': 'gzip',
+    },
+    body   : gzipSync(form.toString()),
   })
   if (!res.ok) throw new Error(`select.jsp returned HTTP ${res.status}`)
   const { json, raw } = await readBody(res)
