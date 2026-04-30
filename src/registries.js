@@ -13,15 +13,15 @@
  */
 export const REGISTRIES = [
   {
-    id:            'wipo',
-    label:         'WIPO Madrid',
-    value:         'WIPO Madrid',
-    fetchStrategy: 'numbers',
-    apiPath:       '/api/wipo-search',
-    queryParam:    'irNumbers',
-    knownMarksKey: 'wipo',
-    requiresKey:   false,
-    note:          'Public API — fetch by IR number; no credentials required',
+    id:             'wipo',
+    label:          'WIPO Madrid',
+    value:          'WIPO Madrid',
+    fetchStrategy:  'holder',
+    apiPath:        '/api/wipo-search',
+    queryParam:     'holder',
+    searchKeyField: 'searchKey',
+    requiresKey:    false,
+    note:           'WIPO Madrid Monitor — holder name search via unofficial endpoints; may break without notice',
   },
   {
     id:             'uspto',
