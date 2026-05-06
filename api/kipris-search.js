@@ -4,11 +4,15 @@
  * Fetches Korean trademark data from KIPRIS Plus.
  * Requires KIPRIS_API_KEY in Vercel environment variables.
  *
+ * Searches by CURRENT RIGHT HOLDER (not original applicant) so that marks
+ * acquired via assignment / M&A are captured under the present owner. Marks
+ * filed by the entity but later assigned away are correctly excluded.
+ *
  * ── Endpoint ──────────────────────────────────────────────────────────────
- * GET http://plus.kipris.or.kr/openapi/rest/trademarkInfoSearchService/applicantNamesearchInfo
+ * GET http://plus.kipris.or.kr/openapi/rest/trademarkInfoSearchService/rightHolderNamesearchInfo
  *
  * Key input parameters:
- *   applicantName  — applicant name (Korean)
+ *   rightHolderName — current right holder name (Korean)
  *   application    — include filed marks        (true/false)
  *   registration   — include registered marks   (true/false)
  *   refused        — include refused marks       (true/false)
@@ -51,7 +55,7 @@ export const config = { runtime: 'nodejs' }
 
 // ── constants ─────────────────────────────────────────────────────────────────
 
-const BASE_URL      = 'http://plus.kipris.or.kr/openapi/rest/trademarkInfoSearchService/applicantNamesearchInfo'
+const BASE_URL      = 'http://plus.kipris.or.kr/openapi/rest/trademarkInfoSearchService/rightHolderNamesearchInfo'
 const ROWS_PER_PAGE = 100
 const MAX_RECORDS   = 500
 
@@ -191,18 +195,19 @@ function mapApplicantName(koreanName) {
 }
 
 /** Convert one <TradeMarkInfo> block into a dashboard trademark record. */
-function parseItem(item, queryApplicant) {
+function parseItem(item, queryHolder) {
   const rawApp    = xmlTag(item, 'ApplicationNumber')
   const rawReg    = xmlTag(item, 'RegistrationNumber')
   const statusKR  = xmlTag(item, 'ApplicationStatus')
   const viennaCode = xmlTag(item, 'ViennaCode')
   const appNo     = fmtApp(rawApp)
 
-  const koreanApplicant = xmlTag(item, 'ApplicantName') || xmlTag(item, 'RegistrationRightholderName') || queryApplicant
+  // Prefer current right holder over original applicant for display
+  const koreanHolder = xmlTag(item, 'RegistrationRightholderName') || xmlTag(item, 'ApplicantName') || queryHolder
 
   return {
-    id:               `kipris-${rawApp || queryApplicant + Math.random().toString(36).slice(2, 7)}`,
-    applicant:        mapApplicantName(koreanApplicant),
+    id:               `kipris-${rawApp || queryHolder + Math.random().toString(36).slice(2, 7)}`,
+    applicant:        mapApplicantName(koreanHolder),
     markName:         xmlTag(item, 'Title') || '—',
     registry:         'KIPRIS',
     country:          'South Korea',
@@ -222,8 +227,8 @@ function parseItem(item, queryApplicant) {
 // ── KIPRIS API caller ─────────────────────────────────────────────────────────
 
 /** Fetch one page of results. Returns { totalCount, items: [rawXmlStrings] }. */
-async function fetchPage(applicantName, accessKey, pageNo) {
-  const url = `${BASE_URL}?applicantName=${encodeURIComponent(applicantName)}` +
+async function fetchPage(rightHolderName, accessKey, pageNo) {
+  const url = `${BASE_URL}?rightHolderName=${encodeURIComponent(rightHolderName)}` +
               `&${STATUS_PARAMS}` +
               `&docsStart=${pageNo}&docsCount=${ROWS_PER_PAGE}` +
               `&accessKey=${encodeURIComponent(accessKey)}`
@@ -244,9 +249,9 @@ async function fetchPage(applicantName, accessKey, pageNo) {
   return { totalCount, items }
 }
 
-/** Fetch all pages for an applicant name, up to MAX_RECORDS. */
-async function fetchAll(applicantName, accessKey) {
-  const first    = await fetchPage(applicantName, accessKey, 1)
+/** Fetch all pages for a right-holder name, up to MAX_RECORDS. */
+async function fetchAll(rightHolderName, accessKey) {
+  const first    = await fetchPage(rightHolderName, accessKey, 1)
   const rawItems = [...first.items]
   const total    = Math.min(first.totalCount, MAX_RECORDS)
 
@@ -255,7 +260,7 @@ async function fetchAll(applicantName, accessKey) {
     for (let p = 2; p <= extraPages + 1; p++) {
       if (rawItems.length >= MAX_RECORDS) break
       try {
-        const page = await fetchPage(applicantName, accessKey, p)
+        const page = await fetchPage(rightHolderName, accessKey, p)
         rawItems.push(...page.items)
       } catch (err) {
         console.warn(`[kipris-search] page ${p} failed: ${err.message}`)
@@ -286,14 +291,14 @@ export default async function handler(req, res) {
     })
   }
 
-  const applicantName = (req.query.applicantName || '').trim()
-  if (!applicantName) {
-    return res.status(400).json({ error: 'Missing required parameter: applicantName' })
+  const rightHolderName = (req.query.rightHolderName || req.query.applicantName || '').trim()
+  if (!rightHolderName) {
+    return res.status(400).json({ error: 'Missing required parameter: rightHolderName' })
   }
 
   // Debug mode — returns raw KIPRIS XML for inspection
   if (req.query.debug === 'true') {
-    const url = `${BASE_URL}?applicantName=${encodeURIComponent(applicantName)}&${STATUS_PARAMS}` +
+    const url = `${BASE_URL}?rightHolderName=${encodeURIComponent(rightHolderName)}&${STATUS_PARAMS}` +
                 `&docsStart=1&docsCount=5&accessKey=${encodeURIComponent(accessKey)}`
     const debugRes = await fetchWithTimeout(url)
     const xml      = await debugRes.text()
@@ -301,9 +306,9 @@ export default async function handler(req, res) {
   }
 
   try {
-    const rawItems = await fetchAll(applicantName, accessKey)
+    const rawItems = await fetchAll(rightHolderName, accessKey)
     const results  = rawItems
-      .map(item => parseItem(item, applicantName))
+      .map(item => parseItem(item, rightHolderName))
       .filter(r => r.serialNo || r.markName !== '—')
 
     res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate=300')

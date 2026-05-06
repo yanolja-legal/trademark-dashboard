@@ -65,10 +65,10 @@ export const REGISTRIES = [
     value:          'KIPRIS',
     fetchStrategy:  'holder',
     apiPath:        '/api/kipris-search',
-    queryParam:     'applicantName',
+    queryParam:     'rightHolderName',
     searchKeyField: 'kiprisSearchKey',
     knownMarksKey:  'kipris',
     requiresKey:    true,
-    note:           'Korean IP Registry (KIPO) — searches by applicant name',
+    note:           'Korean IP Registry (KIPO) — searches by current right holder name (captures acquisitions)',
   },
 ]
