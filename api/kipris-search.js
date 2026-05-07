@@ -9,40 +9,42 @@
  * filed by the entity but later assigned away are correctly excluded.
  *
  * ── Endpoint ──────────────────────────────────────────────────────────────
- * GET http://plus.kipris.or.kr/openapi/rest/trademarkInfoSearchService/getAdvancedSearch
+ * GET http://plus.kipris.or.kr/openapi/rest/trademarkInfoSearchService/regPrivilegeNamesearchInfo
  *
- * Key input parameters (per KIPRIS getAdvancedSearch spec):
- *   regPrivilegeName — registered right holder / 등록권자 (RG) — primary search field
- *   application      — include filed marks                       (true/false)
- *   registration     — include registered marks                  (true/false)
- *   refused          — include refused marks                     (true/false)
- *   expiration       — include expired marks                     (true/false)
- *   withdrawal       — include withdrawn marks                   (true/false)
- *   publication      — include published marks                   (true/false)
- *   cancel           — include cancelled marks                   (true/false)
- *   abandonment      — include abandoned marks                   (true/false)
- *   pageNo           — page number (1-based)
- *   numOfRows        — records per page (default 30, max 500)
- *   accessKey        — KIPRIS API key
+ * Key input parameters:
+ *   regPrivilegeName — registered right holder / 등록권자 (Korean)
+ *   application    — include filed marks        (true/false)
+ *   registration   — include registered marks   (true/false)
+ *   refused        — include refused marks       (true/false)
+ *   expiration     — include expired marks       (true/false)
+ *   withdrawal     — include withdrawn marks     (true/false)
+ *   publication    — include published marks     (true/false)
+ *   cancel         — include cancelled marks     (true/false)
+ *   abandonment    — include abandoned marks     (true/false)
+ *   docsStart      — page number (1-based)
+ *   docsCount      — records per page (max 500)
+ *   accessKey      — KIPRIS API key
  *
  * ── Response XML structure ────────────────────────────────────────────────
  *   <response>
+ *     <header><successYN>Y</successYN></header>
  *     <body>
  *       <items>
- *         <item>
- *           <applicationNumber>4020220123456</applicationNumber>
- *           <title>야놀자</title>
- *           <applicantName>야놀자 주식회사</applicantName>
- *           <regPrivilegeName>야놀자 주식회사</regPrivilegeName>
- *           <applicationDate>20220315</applicationDate>
- *           <registrationNumber>4012345670000</registrationNumber>
- *           <registrationDate>20230110</registrationDate>
- *           <applicationStatus>등록</applicationStatus>
- *           <classificationCode>G0901G4201</classificationCode>
- *           <viennaCode>...</viennaCode>
- *         </item>
+ *         <TotalSearchCount>N</TotalSearchCount>
+ *         <TradeMarkInfo>
+ *           <ApplicationNumber>4020220123456</ApplicationNumber>
+ *           <Title>야놀자</Title>
+ *           <ApplicantName>야놀자 주식회사</ApplicantName>
+ *           <RegistrationRightholderName>야놀자 주식회사</RegistrationRightholderName>
+ *           <ApplicationDate>20220315</ApplicationDate>
+ *           <PublicDate>20220920</PublicDate>
+ *           <RegistrationNumber>4012345670000</RegistrationNumber>
+ *           <RegistrationDate>20230110</RegistrationDate>
+ *           <ApplicationStatus>등록</ApplicationStatus>
+ *           <GoodClassificationCode>G0901G4201</GoodClassificationCode>
+ *           <ViennaCode>...</ViennaCode>
+ *         </TradeMarkInfo>
  *       </items>
- *       <count><totalCount>N</totalCount></count>
  *     </body>
  *   </response>
  */
@@ -53,8 +55,8 @@ export const config = { runtime: 'nodejs' }
 
 // ── constants ─────────────────────────────────────────────────────────────────
 
-const BASE_URL      = 'http://plus.kipris.or.kr/openapi/rest/trademarkInfoSearchService/getAdvancedSearch'
-const ROWS_PER_PAGE = 500
+const BASE_URL      = 'http://plus.kipris.or.kr/openapi/rest/trademarkInfoSearchService/regPrivilegeNamesearchInfo'
+const ROWS_PER_PAGE = 100
 const MAX_RECORDS   = 1000
 
 // Boolean filter params — all statuses and all mark types set to true
@@ -94,10 +96,10 @@ function xmlTag(xml, name) {
   return m ? m[1].replace(/<[^>]+>/g, '').trim() : ''
 }
 
-/** Extract all <item>…</item> blocks under <items>. */
+/** Extract all <TradeMarkInfo>…</TradeMarkInfo> blocks. */
 function xmlItems(xml) {
   const out = []
-  const re  = /<item>([\s\S]*?)<\/item>/gi
+  const re  = /<TradeMarkInfo>([\s\S]*?)<\/TradeMarkInfo>/gi
   let m
   while ((m = re.exec(xml)) !== null) out.push(m[1])
   return out
@@ -192,30 +194,30 @@ function mapApplicantName(koreanName) {
   return match ? match.english : koreanName
 }
 
-/** Convert one <item> block into a dashboard trademark record. */
+/** Convert one <TradeMarkInfo> block into a dashboard trademark record. */
 function parseItem(item, queryHolder) {
-  const rawApp    = xmlTag(item, 'applicationNumber')
-  const rawReg    = xmlTag(item, 'registrationNumber')
-  const statusKR  = xmlTag(item, 'applicationStatus')
-  const viennaCode = xmlTag(item, 'viennaCode')
+  const rawApp    = xmlTag(item, 'ApplicationNumber')
+  const rawReg    = xmlTag(item, 'RegistrationNumber')
+  const statusKR  = xmlTag(item, 'ApplicationStatus')
+  const viennaCode = xmlTag(item, 'ViennaCode')
   const appNo     = fmtApp(rawApp)
 
   // Prefer current right holder over original applicant for display
-  const koreanHolder = xmlTag(item, 'regPrivilegeName') || xmlTag(item, 'applicantName') || queryHolder
+  const koreanHolder = xmlTag(item, 'RegistrationRightholderName') || xmlTag(item, 'ApplicantName') || queryHolder
 
   return {
     id:               `kipris-${rawApp || queryHolder + Math.random().toString(36).slice(2, 7)}`,
     applicant:        mapApplicantName(koreanHolder),
-    markName:         xmlTag(item, 'title') || '—',
+    markName:         xmlTag(item, 'Title') || '—',
     registry:         'KIPRIS',
     country:          'South Korea',
     serialNo:         appNo,
     regNo:            fmtReg(rawReg),
     kindOfMark:       mapKind(viennaCode, rawApp),
-    ncl:              parseNcl(xmlTag(item, 'classificationCode')),
-    applicationDate:  isoDate(xmlTag(item, 'applicationDate')),
-    publicationDate:  isoDate(xmlTag(item, 'publicationDate')),
-    registrationDate: isoDate(xmlTag(item, 'registrationDate')),
+    ncl:              parseNcl(xmlTag(item, 'GoodClassificationCode')),
+    applicationDate:  isoDate(xmlTag(item, 'ApplicationDate')),
+    publicationDate:  isoDate(xmlTag(item, 'PublicDate')),
+    registrationDate: isoDate(xmlTag(item, 'RegistrationDate')),
     expiryDate:       '',
     status:           mapStatus(statusKR),
     source:           'live',
@@ -228,7 +230,7 @@ function parseItem(item, queryHolder) {
 async function fetchPage(regPrivilegeName, accessKey, pageNo) {
   const url = `${BASE_URL}?regPrivilegeName=${encodeURIComponent(regPrivilegeName)}` +
               `&${STATUS_PARAMS}` +
-              `&pageNo=${pageNo}&numOfRows=${ROWS_PER_PAGE}` +
+              `&docsStart=${pageNo}&docsCount=${ROWS_PER_PAGE}` +
               `&accessKey=${encodeURIComponent(accessKey)}`
 
   const res = await fetchWithTimeout(url)
@@ -242,7 +244,7 @@ async function fetchPage(regPrivilegeName, accessKey, pageNo) {
     throw new Error(`KIPRIS API error: ${resultMsg} (code ${resultCode})`)
   }
 
-  const totalCount = parseInt(xmlTag(xml, 'totalCount') || '0', 10)
+  const totalCount = parseInt(xmlTag(xml, 'TotalSearchCount') || '0', 10)
   const items      = xmlItems(xml)
   return { totalCount, items }
 }
@@ -297,7 +299,7 @@ export default async function handler(req, res) {
   // Debug mode — returns raw KIPRIS XML for inspection
   if (req.query.debug === 'true') {
     const url = `${BASE_URL}?regPrivilegeName=${encodeURIComponent(regPrivilegeName)}&${STATUS_PARAMS}` +
-                `&pageNo=1&numOfRows=5&accessKey=${encodeURIComponent(accessKey)}`
+                `&docsStart=1&docsCount=5&accessKey=${encodeURIComponent(accessKey)}`
     const debugRes = await fetchWithTimeout(url)
     const xml      = await debugRes.text()
     return res.status(200).json({ url: url.replace(encodeURIComponent(accessKey), '***KEY***'), xml })
