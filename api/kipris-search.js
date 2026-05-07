@@ -9,42 +9,40 @@
  * filed by the entity but later assigned away are correctly excluded.
  *
  * ── Endpoint ──────────────────────────────────────────────────────────────
- * GET http://plus.kipris.or.kr/openapi/rest/trademarkInfoSearchService/rightHolderNamesearchInfo
+ * GET http://plus.kipris.or.kr/openapi/rest/trademarkInfoSearchService/getAdvancedSearch
  *
- * Key input parameters:
- *   rightHolderName — current right holder name (Korean)
- *   application    — include filed marks        (true/false)
- *   registration   — include registered marks   (true/false)
- *   refused        — include refused marks       (true/false)
- *   expiration     — include expired marks       (true/false)
- *   withdrawal     — include withdrawn marks     (true/false)
- *   publication    — include published marks     (true/false)
- *   cancel         — include cancelled marks     (true/false)
- *   abandonment    — include abandoned marks     (true/false)
- *   docsStart      — page number (1-based)
- *   docsCount      — records per page (max 500)
- *   accessKey      — KIPRIS API key
+ * Key input parameters (per KIPRIS getAdvancedSearch spec):
+ *   regPrivilegeName — registered right holder / 등록권자 (RG) — primary search field
+ *   application      — include filed marks                       (true/false)
+ *   registration     — include registered marks                  (true/false)
+ *   refused          — include refused marks                     (true/false)
+ *   expiration       — include expired marks                     (true/false)
+ *   withdrawal       — include withdrawn marks                   (true/false)
+ *   publication      — include published marks                   (true/false)
+ *   cancel           — include cancelled marks                   (true/false)
+ *   abandonment      — include abandoned marks                   (true/false)
+ *   pageNo           — page number (1-based)
+ *   numOfRows        — records per page (default 30, max 500)
+ *   accessKey        — KIPRIS API key
  *
  * ── Response XML structure ────────────────────────────────────────────────
  *   <response>
- *     <header><successYN>Y</successYN></header>
  *     <body>
  *       <items>
- *         <TotalSearchCount>N</TotalSearchCount>
- *         <TradeMarkInfo>
- *           <ApplicationNumber>4020220123456</ApplicationNumber>
- *           <Title>야놀자</Title>
- *           <ApplicantName>야놀자 주식회사</ApplicantName>
- *           <ApplicationDate>20220315</ApplicationDate>
- *           <PublicNumber>...</PublicNumber>
- *           <PublicDate>20220920</PublicDate>
- *           <RegistrationNumber>4012345670000</RegistrationNumber>
- *           <RegistrationDate>20230110</RegistrationDate>
- *           <ApplicationStatus>등록</ApplicationStatus>
- *           <GoodClassificationCode>G0901G4201</GoodClassificationCode>
- *           <ViennaCode>...</ViennaCode>
- *         </TradeMarkInfo>
+ *         <item>
+ *           <applicationNumber>4020220123456</applicationNumber>
+ *           <title>야놀자</title>
+ *           <applicantName>야놀자 주식회사</applicantName>
+ *           <regPrivilegeName>야놀자 주식회사</regPrivilegeName>
+ *           <applicationDate>20220315</applicationDate>
+ *           <registrationNumber>4012345670000</registrationNumber>
+ *           <registrationDate>20230110</registrationDate>
+ *           <applicationStatus>등록</applicationStatus>
+ *           <classificationCode>G0901G4201</classificationCode>
+ *           <viennaCode>...</viennaCode>
+ *         </item>
  *       </items>
+ *       <count><totalCount>N</totalCount></count>
  *     </body>
  *   </response>
  */
@@ -55,9 +53,9 @@ export const config = { runtime: 'nodejs' }
 
 // ── constants ─────────────────────────────────────────────────────────────────
 
-const BASE_URL      = 'http://plus.kipris.or.kr/openapi/rest/trademarkInfoSearchService/rightHolderNamesearchInfo'
-const ROWS_PER_PAGE = 100
-const MAX_RECORDS   = 500
+const BASE_URL      = 'http://plus.kipris.or.kr/openapi/rest/trademarkInfoSearchService/getAdvancedSearch'
+const ROWS_PER_PAGE = 500
+const MAX_RECORDS   = 1000
 
 // Boolean filter params — all statuses and all mark types set to true
 const STATUS_PARAMS = 'application=true&registration=true&refused=true' +
@@ -96,10 +94,10 @@ function xmlTag(xml, name) {
   return m ? m[1].replace(/<[^>]+>/g, '').trim() : ''
 }
 
-/** Extract all <TradeMarkInfo>…</TradeMarkInfo> blocks. */
+/** Extract all <item>…</item> blocks under <items>. */
 function xmlItems(xml) {
   const out = []
-  const re  = /<TradeMarkInfo>([\s\S]*?)<\/TradeMarkInfo>/gi
+  const re  = /<item>([\s\S]*?)<\/item>/gi
   let m
   while ((m = re.exec(xml)) !== null) out.push(m[1])
   return out
@@ -194,30 +192,30 @@ function mapApplicantName(koreanName) {
   return match ? match.english : koreanName
 }
 
-/** Convert one <TradeMarkInfo> block into a dashboard trademark record. */
+/** Convert one <item> block into a dashboard trademark record. */
 function parseItem(item, queryHolder) {
-  const rawApp    = xmlTag(item, 'ApplicationNumber')
-  const rawReg    = xmlTag(item, 'RegistrationNumber')
-  const statusKR  = xmlTag(item, 'ApplicationStatus')
-  const viennaCode = xmlTag(item, 'ViennaCode')
+  const rawApp    = xmlTag(item, 'applicationNumber')
+  const rawReg    = xmlTag(item, 'registrationNumber')
+  const statusKR  = xmlTag(item, 'applicationStatus')
+  const viennaCode = xmlTag(item, 'viennaCode')
   const appNo     = fmtApp(rawApp)
 
   // Prefer current right holder over original applicant for display
-  const koreanHolder = xmlTag(item, 'RegistrationRightholderName') || xmlTag(item, 'ApplicantName') || queryHolder
+  const koreanHolder = xmlTag(item, 'regPrivilegeName') || xmlTag(item, 'applicantName') || queryHolder
 
   return {
     id:               `kipris-${rawApp || queryHolder + Math.random().toString(36).slice(2, 7)}`,
     applicant:        mapApplicantName(koreanHolder),
-    markName:         xmlTag(item, 'Title') || '—',
+    markName:         xmlTag(item, 'title') || '—',
     registry:         'KIPRIS',
     country:          'South Korea',
     serialNo:         appNo,
     regNo:            fmtReg(rawReg),
     kindOfMark:       mapKind(viennaCode, rawApp),
-    ncl:              parseNcl(xmlTag(item, 'GoodClassificationCode')),
-    applicationDate:  isoDate(xmlTag(item, 'ApplicationDate')),
-    publicationDate:  isoDate(xmlTag(item, 'PublicDate')),
-    registrationDate: isoDate(xmlTag(item, 'RegistrationDate')),
+    ncl:              parseNcl(xmlTag(item, 'classificationCode')),
+    applicationDate:  isoDate(xmlTag(item, 'applicationDate')),
+    publicationDate:  isoDate(xmlTag(item, 'publicationDate')),
+    registrationDate: isoDate(xmlTag(item, 'registrationDate')),
     expiryDate:       '',
     status:           mapStatus(statusKR),
     source:           'live',
@@ -227,10 +225,10 @@ function parseItem(item, queryHolder) {
 // ── KIPRIS API caller ─────────────────────────────────────────────────────────
 
 /** Fetch one page of results. Returns { totalCount, items: [rawXmlStrings] }. */
-async function fetchPage(rightHolderName, accessKey, pageNo) {
-  const url = `${BASE_URL}?rightHolderName=${encodeURIComponent(rightHolderName)}` +
+async function fetchPage(regPrivilegeName, accessKey, pageNo) {
+  const url = `${BASE_URL}?regPrivilegeName=${encodeURIComponent(regPrivilegeName)}` +
               `&${STATUS_PARAMS}` +
-              `&docsStart=${pageNo}&docsCount=${ROWS_PER_PAGE}` +
+              `&pageNo=${pageNo}&numOfRows=${ROWS_PER_PAGE}` +
               `&accessKey=${encodeURIComponent(accessKey)}`
 
   const res = await fetchWithTimeout(url)
@@ -244,14 +242,14 @@ async function fetchPage(rightHolderName, accessKey, pageNo) {
     throw new Error(`KIPRIS API error: ${resultMsg} (code ${resultCode})`)
   }
 
-  const totalCount = parseInt(xmlTag(xml, 'TotalSearchCount') || '0', 10)
+  const totalCount = parseInt(xmlTag(xml, 'totalCount') || '0', 10)
   const items      = xmlItems(xml)
   return { totalCount, items }
 }
 
-/** Fetch all pages for a right-holder name, up to MAX_RECORDS. */
-async function fetchAll(rightHolderName, accessKey) {
-  const first    = await fetchPage(rightHolderName, accessKey, 1)
+/** Fetch all pages for a registered right-holder name, up to MAX_RECORDS. */
+async function fetchAll(regPrivilegeName, accessKey) {
+  const first    = await fetchPage(regPrivilegeName, accessKey, 1)
   const rawItems = [...first.items]
   const total    = Math.min(first.totalCount, MAX_RECORDS)
 
@@ -260,7 +258,7 @@ async function fetchAll(rightHolderName, accessKey) {
     for (let p = 2; p <= extraPages + 1; p++) {
       if (rawItems.length >= MAX_RECORDS) break
       try {
-        const page = await fetchPage(rightHolderName, accessKey, p)
+        const page = await fetchPage(regPrivilegeName, accessKey, p)
         rawItems.push(...page.items)
       } catch (err) {
         console.warn(`[kipris-search] page ${p} failed: ${err.message}`)
@@ -291,24 +289,24 @@ export default async function handler(req, res) {
     })
   }
 
-  const rightHolderName = (req.query.rightHolderName || req.query.applicantName || '').trim()
-  if (!rightHolderName) {
-    return res.status(400).json({ error: 'Missing required parameter: rightHolderName' })
+  const regPrivilegeName = (req.query.regPrivilegeName || req.query.rightHolderName || req.query.applicantName || '').trim()
+  if (!regPrivilegeName) {
+    return res.status(400).json({ error: 'Missing required parameter: regPrivilegeName' })
   }
 
   // Debug mode — returns raw KIPRIS XML for inspection
   if (req.query.debug === 'true') {
-    const url = `${BASE_URL}?rightHolderName=${encodeURIComponent(rightHolderName)}&${STATUS_PARAMS}` +
-                `&docsStart=1&docsCount=5&accessKey=${encodeURIComponent(accessKey)}`
+    const url = `${BASE_URL}?regPrivilegeName=${encodeURIComponent(regPrivilegeName)}&${STATUS_PARAMS}` +
+                `&pageNo=1&numOfRows=5&accessKey=${encodeURIComponent(accessKey)}`
     const debugRes = await fetchWithTimeout(url)
     const xml      = await debugRes.text()
     return res.status(200).json({ url: url.replace(encodeURIComponent(accessKey), '***KEY***'), xml })
   }
 
   try {
-    const rawItems = await fetchAll(rightHolderName, accessKey)
+    const rawItems = await fetchAll(regPrivilegeName, accessKey)
     const results  = rawItems
-      .map(item => parseItem(item, rightHolderName))
+      .map(item => parseItem(item, regPrivilegeName))
       .filter(r => r.serialNo || r.markName !== '—')
 
     res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate=300')

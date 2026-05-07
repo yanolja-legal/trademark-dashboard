@@ -65,7 +65,7 @@ export const REGISTRIES = [
     value:          'KIPRIS',
     fetchStrategy:  'holder',
     apiPath:        '/api/kipris-search',
-    queryParam:     'rightHolderName',
+    queryParam:     'regPrivilegeName',
     searchKeyField: 'kiprisSearchKey',
     knownMarksKey:  'kipris',
     requiresKey:    true,
