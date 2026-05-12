@@ -10,30 +10,35 @@
  *   'csv'     → manual CSV upload in Portfolio tab; no auto-fetch
  *   'none'    → not yet implemented; shows pending in status panel
  * apiPath       — null means never auto-fetched
+ *
+ * Note: All registries are now CSV-driven. The live API integrations for
+ * KIPRIS, USPTO, and WIPO Madrid were deprecated in favour of manual CSV
+ * uploads because the API endpoints proved unreliable for compliance use.
+ * Backend route files in /api are retained as dead code for reference but
+ * are no longer wired up via apiPath.
  */
 export const REGISTRIES = [
   {
     id:             'wipo',
     label:          'WIPO Madrid',
     value:          'WIPO Madrid',
-    fetchStrategy:  'holder',
-    apiPath:        '/api/wipo-search',
-    queryParam:     'holder',
-    searchKeyField: 'searchKey',
+    fetchStrategy:  'csv',
+    apiPath:        null,
+    queryParam:     null,
     requiresKey:    false,
-    note:           'WIPO Madrid Monitor — holder name search via unofficial endpoints; may break without notice',
+    note:           'Manual CSV upload — export from WIPO Madrid Monitor and upload below',
+    csvColumns:     ['Applicant', 'Mark Name', 'Application No.', 'Registration No.', 'NCL Class', 'Filed Date', 'Registration Date', 'Expiry Date', 'Status'],
   },
   {
     id:             'uspto',
-    label:          'USPTO (via KIPRIS)',
+    label:          'USPTO',
     value:          'USPTO',
-    fetchStrategy:  'holder',
-    apiPath:        '/api/kipris-us-search',
-    queryParam:     'applicantName',
-    searchKeyField: 'kiprisUsSearchKey',
-    knownMarksKey:  'uspto',
-    requiresKey:    true,
-    note:           'USPTO data via KIPRIS Foreign Trademark Search — searches by applicant name',
+    fetchStrategy:  'csv',
+    apiPath:        null,
+    queryParam:     null,
+    requiresKey:    false,
+    note:           'Manual CSV upload — export from tsdr.uspto.gov and upload below',
+    csvColumns:     ['Applicant', 'Mark Name', 'Application No.', 'Registration No.', 'NCL Class', 'Filed Date', 'Registration Date', 'Expiry Date', 'Status'],
   },
   {
     id:            'ipindia',
@@ -63,12 +68,11 @@ export const REGISTRIES = [
     id:             'kipris',
     label:          'KIPRIS',
     value:          'KIPRIS',
-    fetchStrategy:  'holder',
-    apiPath:        '/api/kipris-search',
-    queryParam:     'regPrivilegeName',
-    searchKeyField: 'kiprisSearchKey',
-    knownMarksKey:  'kipris',
-    requiresKey:    true,
-    note:           'Korean IP Registry (KIPO) — searches by current right holder name (captures acquisitions)',
+    fetchStrategy:  'csv',
+    apiPath:        null,
+    queryParam:     null,
+    requiresKey:    false,
+    note:           'Manual CSV upload — export from kipris.or.kr and upload below',
+    csvColumns:     ['Applicant', 'Mark Name', 'Application No.', 'Registration No.', 'NCL Class', 'Filed Date', 'Registration Date', 'Expiry Date', 'Status'],
   },
 ]

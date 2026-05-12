@@ -94,45 +94,48 @@ After pushing, confirm the Vercel deployment succeeded
 by checking the deployment URL.
 
 ## SUBSIDIARIES (src/subsidiaries.js)
-1. Yanolja Cloud Pte. Ltd. — Singapore — searchKey: "Yanolja Cloud"
-2. Go Global Travel Ltd. — Israel — searchKey: "Go Global Travel"
-3. Yanolja Co., Ltd. — South Korea — searchKey: "Yanolja"
-4. Yanolja Cloud Solution PVT Ltd. — India — searchKey: "Yanolja Cloud Solution"
-5. Nol Universe Co., Ltd. — South Korea — searchKey: "Nol Universe"
-6. MST TRAVEL LTD. — Israel — searchKey: "MST TRAVEL"
-7. RightRez, Inc. — United States — searchKey: "RightRez"
-8. Innsoft, Inc. — United States — searchKey: "Innsoft"
-9. Yanolja F&G Co., Ltd. — South Korea — kiprisSearchKey: "야놀자에프앤지"
-10. Yanolja Cloud Go Global Korea Co., Ltd. — South Korea — kiprisSearchKey: "야놀자클라우드고글로벌코리아"
-11. Yanolja Cloud Partners Co., Ltd. — South Korea — kiprisSearchKey: "야놀자클라우드파트너스"
-12. Yanolja Partners Co., Ltd. — South Korea — kiprisSearchKey: "야놀자파트너스"
+1. Yanolja Cloud Pte. Ltd. — Singapore
+2. Go Global Travel Ltd. — Israel
+3. Yanolja Co., Ltd. — South Korea
+4. Yanolja Cloud Solution PVT Ltd. — India
+5. Nol Universe Co., Ltd. — South Korea
+6. MST TRAVEL LTD. — Israel
+7. RightRez, Inc. — United States
+8. Innsoft, Inc. — United States
+9. Yanolja F&G Co., Ltd. — South Korea
+10. Yanolja Cloud Go Global Korea Co., Ltd. — South Korea
+11. Yanolja Cloud Partners Co., Ltd. — South Korea
+12. Yanolja Partners Co., Ltd. — South Korea
 
 ## DATA SOURCES
 
-### Live APIs
-| Registry | Coverage | Status | Env Var |
-|---|---|---|---|
-| WIPO Madrid | International Madrid System | Partial — IR number fetch works, holder name search pending solution | None needed |
-| KIPRIS | South Korea + United States | Pending API key approval | KIPRIS_API_KEY |
+All registries are CSV-driven. Live API integrations were deprecated
+because endpoints (KIPRIS Plus, WIPO Madrid Monitor) proved unreliable
+for compliance use. Manual CSV upload gives consistent, auditable data.
 
 ### Manual CSV Upload (Universal System)
-Any country can be uploaded using the standardized CSV 
+Any country can be uploaded using the standardized CSV
 template. All uploads use the same column format:
-Applicant | Mark Name | Application No. | Registration No. | 
-Kind of Mark | NCL Class | Country of Filing | Registry | 
-Filed Date | Publication Date | Registration Date | 
+Applicant | Mark Name | Application No. | Registration No. |
+Kind of Mark | NCL Class | Country of Filing | Registry |
+Filed Date | Publication Date | Registration Date |
 Expiry Date | Current Status
 
-Currently active manual upload countries:
-- India (IP India) — CAPTCHA blocks automated access
-- Israel (ILPO) — no public API available
+Currently active registries (all CSV upload):
+- KIPRIS (South Korea) — export from kipris.or.kr
+- USPTO (United States) — export from tsdr.uspto.gov
+- WIPO Madrid (International) — export from WIPO Madrid Monitor
+- IP India — download from ipindia.gov.in
+- ILPO Israel — download from trademarks.justice.gov.il
 - Any other country as needed — same template
 
-### Removed / Pending Decision
+### Removed / Deprecated
 | Registry | Reason |
 |---|---|
 | EUIPO | Removed — no longer in scope |
 | Marker API (USPTO) | Removed — service shut down |
+| KIPRIS live API | Deprecated 2026-05-07 — dead backend code retained at api/kipris-search.js and api/kipris-us-search.js for reference |
+| WIPO Madrid live API | Deprecated 2026-05-07 — dead backend code retained at api/wipo-search.js |
 
 ## DASHBOARD TABS
 1. **Portfolio** — unified trademark table with all registry data
@@ -152,17 +155,19 @@ Currently active manual upload countries:
    - NCL class breakdown horizontal bar chart
 
 4. **API Setup** — single control panel for ALL data sources:
-   - Live API registry status cards with Test Connection buttons
+   - Registry status cards (all CSV upload)
    - Universal CSV upload manager (any country, same template)
    - Download CSV template button
    - Subsidiary entities list
 
-## API ROUTES (in /api folder)
-- /api/wipo-search — WIPO Madrid Monitor public API (IR number fetch)
-- /api/kipris-search — KIPRIS Open API Korea (pending key)
-- /api/kipris-us-search — KIPRIS Foreign Trademark Search for USPTO (pending key)
-- /api/ipindia-search — IP India search placeholder (CSV upload used in practice)
-- /api/ilpo-search — ILPO Israel search placeholder (CSV upload used in practice)
+## API ROUTES (in /api folder) — ALL DEAD CODE
+None of these are wired up in src/registries.js any more (apiPath: null
+for all registries). Files retained for reference / future revival only.
+- /api/wipo-search — was WIPO Madrid Monitor scraping
+- /api/kipris-search — was KIPRIS Plus right-holder search (Korea)
+- /api/kipris-us-search — was KIPRIS Foreign Trademark Search (USPTO)
+- /api/ipindia-search — was IP India placeholder
+- /api/ilpo-search — was ILPO Israel placeholder
 
 ## KEY DESIGN DECISIONS
 - Dark theme: deep navy (#0d0f14) background, electric blue/green accents
@@ -182,20 +187,23 @@ Currently active manual upload countries:
 - Singapore local filings excluded — covered by WIPO Madrid
 
 ## ENVIRONMENT VARIABLES (set in Vercel)
-| Variable | Value | Status |
-|---|---|---|
-| KIPRIS_API_KEY | Add when approved | Pending |
+None required currently. All registries are CSV-driven.
 
 ## REMOVED ENVIRONMENT VARIABLES
 - MARKER_API_USERNAME — removed (service shut down)
 - MARKER_API_PASSWORD — removed (service shut down)
+- KIPRIS_API_KEY — no longer used (KIPRIS moved to CSV upload 2026-05-07);
+  can be removed from Vercel project settings
 
 ## IMPORTANT CONTEXT
-- Expert advice: WIPO alone is insufficient for compliance —
-  local registries needed for India, US, Israel, Korea
-- KIPRIS may also provide WIPO data — confirm on API approval
+- Dashboard is now CSV-driven for all registries (decided 2026-05-07).
+  Live APIs proved unreliable for compliance use.
 - IP India: CAPTCHA blocking — no programmatic access possible
 - ILPO Israel: no public API exists
+- KIPRIS: live API deprecated — endpoint coverage didn't match the
+  public KIPRIS web search; counts were inconsistent
+- WIPO Madrid: live API deprecated — unofficial endpoints required
+  browser-specific compression (LZ-string) and could break anytime
 - EUIPO: fully removed from scope (2026-04-29)
 - Google Workspace hosting considered but kept on Vercel —
   Google SSO to be evaluated with security team
@@ -205,7 +213,6 @@ Currently active manual upload countries:
   if auto-promotion does not trigger
 
 ## NEXT STEPS PENDING
-1. KIPRIS API key approval — will cover Korea + US + possibly WIPO
-2. Google SSO decision from security team
-3. WIPO holder name search solution — explore TMview API 
-   or WIPO eMadrid rights holder access
+1. Google SSO decision from security team
+2. Document the CSV export workflow for each registry (KIPRIS, USPTO,
+   WIPO Madrid) so the user has a clear recurring playbook
