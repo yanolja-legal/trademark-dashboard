@@ -78,6 +78,7 @@ function downloadCsvTemplate() {
     'NCL Class', 'Country of Filing', 'Registry', 'Filed Date', 'Publication Date',
     'Registration Date', 'Expiry Date', 'Current Status',
   ]
+  // Local filing examples
   const ex1 = [
     'Yanolja Co., Ltd.', 'YANOLJA', 'APP-2022-001234', 'REG-2023-005678', 'Word',
     '9, 42', 'India', 'IP India', '2022-03-15', '2022-09-20',
@@ -88,7 +89,24 @@ function downloadCsvTemplate() {
     '9, 35, 42', 'India', 'IP India', '2022-06-20', '',
     '', '', 'Pending',
   ]
-  const csv  = [headers, ex1, ex2].map(row => row.map(v => `"${v}"`).join(',')).join('\n')
+  // Madrid filing example — ONE IRN designating multiple countries means
+  // ONE ROW PER (IRN, designated country). Same App No. repeats across rows.
+  const ex3 = [
+    'Yanolja Co., Ltd.', 'YANOLJA', '1490108', '1490108', 'Word',
+    '42, 43', 'China', 'WIPO Madrid', '2019-05-20', '',
+    '2019-05-20', '2029-05-20', 'Registered',
+  ]
+  const ex4 = [
+    'Yanolja Co., Ltd.', 'YANOLJA', '1490108', '1490108', 'Word',
+    '42, 43', 'Japan', 'WIPO Madrid', '2019-05-20', '',
+    '2019-05-20', '2029-05-20', 'Registered',
+  ]
+  const ex5 = [
+    'Yanolja Co., Ltd.', 'YANOLJA', '1490108', '', 'Word',
+    '42, 43', 'Vietnam', 'WIPO Madrid', '2019-05-20', '',
+    '', '', 'Pending',
+  ]
+  const csv  = [headers, ex1, ex2, ex3, ex4, ex5].map(row => row.map(v => `"${v}"`).join(',')).join('\n')
   const blob = new Blob([csv], { type: 'text/csv' })
   const url  = URL.createObjectURL(blob)
   const a    = document.createElement('a')

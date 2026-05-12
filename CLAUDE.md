@@ -127,6 +127,15 @@ Currently active registries (all CSV upload):
 - WIPO Madrid (International) — export from WIPO Madrid Monitor
 - IP India — download from ipindia.gov.in
 - ILPO Israel — download from trademarks.justice.gov.il
+
+### Madrid filing convention (decided 2026-05-07)
+WIPO Madrid filings are stored as FLAT rows — one row per
+(IRN, designated country) pair. The same Application No. (IRN)
+appears in multiple rows when the international registration
+designates multiple countries. The dashboard counts each row
+as one trademark right, which matches compliance reporting:
+"5 rows for IRN 1490108" = "5 active rights across 5 countries".
+No parent-child / expand-row UI — flat is sufficient.
 - Any other country as needed — same template
 
 ### Removed / Deprecated
