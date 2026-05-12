@@ -1,5 +1,5 @@
-import React from 'react'
-import { Building2, Clock, RefreshCw } from 'lucide-react'
+import React, { useMemo } from 'react'
+import { Building2, Clock } from 'lucide-react'
 import { format } from 'date-fns'
 import { SUBSIDIARIES } from '../subsidiaries.js'
 import { REGISTRIES }   from '../registries.js'
@@ -14,34 +14,15 @@ const REGISTRY_COLORS = {
 
 // ── EntityCard ────────────────────────────────────────────────────────────────
 
-function EntityCard({ sub, marks, registryStatus, lastUpdated, onRefreshRegistry, isRefreshing }) {
-  const counts = {
-    registered: marks.filter(m => m.status === 'Registered').length,
-    pending:    marks.filter(m => m.status === 'Pending').length,
-    expiring:   marks.filter(m => m.status === 'Expiring Soon').length,
-    opposed:    marks.filter(m => m.status === 'Opposed').length,
-    expired:    marks.filter(m => m.status === 'Expired').length,
-  }
+function EntityCard({ sub, marks, presentRegistries }) {
   const isEmpty = marks.length === 0
 
-  // Per-registry breakdown — show all API-fetchable registries so refresh buttons are always visible
-  const regBreakdown = REGISTRIES
-    .filter(reg => reg.fetchStrategy === 'numbers' || reg.fetchStrategy === 'holder')
-    .map(reg => {
-      const count  = marks.filter(m => m.registry === reg.value).length
-      const status = registryStatus[reg.id]?.status ?? 'idle'
-      return { reg, count, status }
-    })
+  // Per-registry count for this entity — only show registries where this entity has marks
+  const registryCounts = presentRegistries
+    .map(reg => ({ reg, count: marks.filter(m => m.registry === reg).length }))
+    .filter(r => r.count > 0)
 
   const countries = [...new Set(marks.map(m => m.country))]
-
-  const statBadges = [
-    { label: 'Registered', value: counts.registered, cls: 'text-green-400  bg-green-500/10  border-green-500/20'  },
-    { label: 'Pending',    value: counts.pending,    cls: 'text-yellow-400 bg-yellow-500/10 border-yellow-500/20' },
-    { label: 'Expiring',   value: counts.expiring,   cls: 'text-orange-400 bg-orange-500/10 border-orange-500/20' },
-    { label: 'Opposed',    value: counts.opposed,    cls: 'text-red-400    bg-red-500/10    border-red-500/20'    },
-    { label: 'Expired',    value: counts.expired,    cls: 'text-slate-400  bg-slate-500/10  border-slate-500/20'  },
-  ]
 
   return (
     <div className={`bg-navy-800 border rounded-xl p-5 transition-colors ${isEmpty ? 'border-navy-600 opacity-60' : 'border-navy-500 hover:border-navy-400'}`}>
@@ -64,45 +45,22 @@ function EntityCard({ sub, marks, registryStatus, lastUpdated, onRefreshRegistry
         </div>
       </div>
 
-      {/* Status breakdown */}
-      <div className="grid grid-cols-5 gap-2 mb-4">
-        {statBadges.map(b => (
-          <div key={b.label} className={`rounded-lg border p-2 text-center ${b.cls}`}>
-            <p className="text-lg font-bold leading-none mb-1">{b.value}</p>
-            <p className="text-[10px] opacity-80 uppercase tracking-wide">{b.label}</p>
-          </div>
-        ))}
-      </div>
-
-      {/* Registry breakdown with per-registry refresh */}
-      {regBreakdown.length > 0 && (
-        <div className="flex flex-wrap gap-1.5 mb-3">
-          {regBreakdown.map(({ reg, count, status }) => {
-            const cls        = REGISTRY_COLORS[reg.value] || REGISTRY_COLORS[reg.label] || 'text-accent-blue border-accent-blue/30 bg-accent-blue/8'
-            const isLoading  = status === 'loading'
-            const isDisabled = isLoading || isRefreshing
+      {/* Per-registry counts (replaces status badges) */}
+      {registryCounts.length > 0 && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-3">
+          {registryCounts.map(({ reg, count }) => {
+            const cls = REGISTRY_COLORS[reg] || 'text-accent-blue border-accent-blue/30 bg-accent-blue/8'
             return (
-              <span key={reg.id} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-mono border ${cls} ${count === 0 && !isLoading ? 'opacity-40' : ''}`}>
-                {reg.label}
-                {isLoading
-                  ? <span className="text-[10px] opacity-60">…</span>
-                  : <span className="font-bold">{count || '0'}</span>
-                }
-                <button
-                  onClick={() => onRefreshRegistry?.(reg.id, sub.id)}
-                  disabled={isDisabled}
-                  title={`Refresh ${reg.label} for ${sub.shortName}`}
-                  className="ml-0.5 opacity-50 hover:opacity-100 disabled:opacity-20 disabled:cursor-not-allowed transition-opacity"
-                >
-                  <RefreshCw className={`w-2.5 h-2.5 ${isLoading ? 'animate-spin' : ''}`} />
-                </button>
-              </span>
+              <div key={reg} className={`rounded-lg border p-2 text-center ${cls}`}>
+                <p className="text-lg font-bold leading-none mb-1">{count}</p>
+                <p className="text-[10px] opacity-80 uppercase tracking-wide truncate">{reg}</p>
+              </div>
             )
           })}
         </div>
       )}
 
-      {/* Footer: jurisdictions + last fetched */}
+      {/* Footer: jurisdictions */}
       <div className="flex items-center justify-between text-xs text-slate-500">
         <span>
           {countries.length > 0
@@ -110,12 +68,6 @@ function EntityCard({ sub, marks, registryStatus, lastUpdated, onRefreshRegistry
             : 'No jurisdictions yet'
           }
         </span>
-        {lastUpdated && (
-          <span className="flex items-center gap-1">
-            <Clock className="w-3 h-3" />
-            {format(lastUpdated, 'dd MMM HH:mm')}
-          </span>
-        )}
       </div>
     </div>
   )
@@ -123,7 +75,13 @@ function EntityCard({ sub, marks, registryStatus, lastUpdated, onRefreshRegistry
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 
-export default function ByEntity({ data, registryStatus = {}, lastUpdated, onRefreshRegistryForEntity, isRefreshing = false }) {
+export default function ByEntity({ data, lastUpdated }) {
+  // Registries actually present in the uploaded data — preserves REGISTRIES.js order
+  const presentRegistries = useMemo(() => {
+    const present = new Set(data.map(t => t.registry).filter(Boolean))
+    return REGISTRIES.map(r => r.value).filter(v => present.has(v))
+  }, [data])
+
   const entities = SUBSIDIARIES
     .filter(s => s.active)
     .map(sub => ({
@@ -143,7 +101,7 @@ export default function ByEntity({ data, registryStatus = {}, lastUpdated, onRef
         <div className="px-5 py-4 border-b border-navy-500 flex items-center justify-between">
           <div>
             <h2 className="font-semibold text-white">Entity Summary</h2>
-            <p className="text-xs text-slate-400 mt-0.5">Portfolio distribution across all subsidiaries</p>
+            <p className="text-xs text-slate-400 mt-0.5">Total trademarks per entity, broken down by registry</p>
           </div>
           {lastUpdated && (
             <span className="flex items-center gap-1.5 text-xs text-slate-400">
@@ -156,33 +114,21 @@ export default function ByEntity({ data, registryStatus = {}, lastUpdated, onRef
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-navy-600/40 bg-navy-700/30">
-                {['Entity', 'HQ', 'Total', 'Registered', 'Pending', 'Expiring', 'Opposed', 'Expired', 'Registries', 'Jurisdictions'].map((h, i) => (
-                  <th
-                    key={h}
-                    className={`px-5 py-3 text-[11px] font-semibold uppercase tracking-wider whitespace-nowrap
-                      ${i <= 1 ? 'text-left text-slate-400' : i === 2 ? 'text-center text-slate-400' : 'text-center'}
-                      ${h === 'Registered' ? 'text-green-400/70'  : ''}
-                      ${h === 'Pending'    ? 'text-yellow-400/70' : ''}
-                      ${h === 'Expiring'   ? 'text-orange-400/70' : ''}
-                      ${h === 'Opposed'    ? 'text-red-400/70'    : ''}
-                      ${h === 'Expired'    ? 'text-slate-500'     : ''}
-                    `}
-                  >
-                    {h}
+                <th className="px-5 py-3 text-left  text-[11px] font-semibold text-slate-400 uppercase tracking-wider whitespace-nowrap">Entity</th>
+                <th className="px-5 py-3 text-left  text-[11px] font-semibold text-slate-400 uppercase tracking-wider whitespace-nowrap">HQ</th>
+                <th className="px-5 py-3 text-center text-[11px] font-semibold text-slate-400 uppercase tracking-wider whitespace-nowrap">Total</th>
+                {presentRegistries.map(reg => (
+                  <th key={reg} className="px-5 py-3 text-center text-[11px] font-semibold uppercase tracking-wider whitespace-nowrap text-accent-blue/80">
+                    {reg}
                   </th>
                 ))}
+                <th className="px-5 py-3 text-center text-[11px] font-semibold text-slate-400 uppercase tracking-wider whitespace-nowrap">Jurisdictions</th>
               </tr>
             </thead>
             <tbody>
               {entities.map(({ sub, marks }) => {
-                const registered = marks.filter(m => m.status === 'Registered').length
-                const pending    = marks.filter(m => m.status === 'Pending').length
-                const expiring   = marks.filter(m => m.status === 'Expiring Soon').length
-                const opposed    = marks.filter(m => m.status === 'Opposed').length
-                const expired    = marks.filter(m => m.status === 'Expired').length
-                const regs       = [...new Set(marks.map(m => m.registry))]
-                const juris      = new Set(marks.map(m => m.country)).size
-                const isEmpty    = marks.length === 0
+                const juris = new Set(marks.map(m => m.country)).size
+                const isEmpty = marks.length === 0
                 return (
                   <tr
                     key={sub.id}
@@ -191,23 +137,14 @@ export default function ByEntity({ data, registryStatus = {}, lastUpdated, onRef
                     <td className="px-5 py-3 font-medium text-white whitespace-nowrap">{sub.name}</td>
                     <td className="px-5 py-3 text-xs text-slate-400 whitespace-nowrap">{sub.country}</td>
                     <td className="px-5 py-3 text-center font-bold text-slate-200">{marks.length || '—'}</td>
-                    <td className="px-5 py-3 text-center text-green-400  font-medium">{registered || '—'}</td>
-                    <td className="px-5 py-3 text-center text-yellow-400 font-medium">{pending    || '—'}</td>
-                    <td className="px-5 py-3 text-center text-orange-400 font-medium">{expiring   || '—'}</td>
-                    <td className="px-5 py-3 text-center text-red-400    font-medium">{opposed    || '—'}</td>
-                    <td className="px-5 py-3 text-center text-slate-400  font-medium">{expired    || '—'}</td>
-                    <td className="px-5 py-3">
-                      {regs.length > 0
-                        ? <div className="flex flex-wrap gap-1">
-                            {regs.map(r => (
-                              <span key={r} className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-accent-blue/10 text-accent-blue border border-accent-blue/20">
-                                {r}
-                              </span>
-                            ))}
-                          </div>
-                        : <span className="text-slate-600 text-xs">—</span>
-                      }
-                    </td>
+                    {presentRegistries.map(reg => {
+                      const count = marks.filter(m => m.registry === reg).length
+                      return (
+                        <td key={reg} className="px-5 py-3 text-center text-accent-blue font-medium">
+                          {count || '—'}
+                        </td>
+                      )
+                    })}
                     <td className="px-5 py-3 text-center text-slate-400">{juris || '—'}</td>
                   </tr>
                 )
@@ -224,10 +161,7 @@ export default function ByEntity({ data, registryStatus = {}, lastUpdated, onRef
             key={sub.id}
             sub={sub}
             marks={marks}
-            registryStatus={registryStatus}
-            lastUpdated={lastUpdated}
-            onRefreshRegistry={onRefreshRegistryForEntity}
-            isRefreshing={isRefreshing}
+            presentRegistries={presentRegistries}
           />
         ))}
       </div>

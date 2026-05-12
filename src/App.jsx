@@ -12,8 +12,8 @@ import { KNOWN_MARKS }  from './knownMarks'
 // ── constants ──────────────────────────────────────────────────────────────────
 
 const TABS = [
-  { id: 'portfolio', label: 'Portfolio',  icon: Database  },
   { id: 'entity',    label: 'By Entity',  icon: Building2 },
+  { id: 'portfolio', label: 'Portfolio',  icon: Database  },
   { id: 'analytics', label: 'Analytics',  icon: BarChart2 },
   { id: 'api',       label: 'API Setup',  icon: Settings  },
 ]
@@ -62,7 +62,7 @@ async function fetchWithTimeout(url, ms = 15000) {
 // ── App ────────────────────────────────────────────────────────────────────────
 
 export default function App() {
-  const [activeTab,      setActiveTab]      = useState('portfolio')
+  const [activeTab,      setActiveTab]      = useState('entity')
   const [liveResults,    setLiveResults]    = useState(() => {
     try { const c = localStorage.getItem(CACHE_RESULTS);   return c ? JSON.parse(c) : [] } catch { return [] }
   })

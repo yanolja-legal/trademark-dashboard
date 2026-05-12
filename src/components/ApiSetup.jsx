@@ -1,9 +1,7 @@
 import React, { useState, useRef } from 'react'
-import { RefreshCw, Check, Eye, EyeOff, Wifi, Building2, XCircle, AlertCircle, Hash, Upload, Download, Trash2, Plus, FileText } from 'lucide-react'
+import { Building2, XCircle, Upload, Download, Trash2, Plus, FileText } from 'lucide-react'
 import { format } from 'date-fns'
 import { SUBSIDIARIES } from '../subsidiaries.js'
-import { REGISTRIES }   from '../registries.js'
-import { KNOWN_MARKS }  from '../knownMarks.js'
 import { normaliseTrademarkData } from '../normalise.js'
 
 // ── CSV helpers ───────────────────────────────────────────────────────────────
@@ -104,68 +102,6 @@ function generateId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 7)
 }
 
-// ── API usage summary ─────────────────────────────────────────────────────────
-
-function ApiUsageSummary({ registryStatus }) {
-  const totalFetched = Object.values(registryStatus).reduce((sum, s) => sum + (s.count || 0), 0)
-  const kiprisTotal  = (registryStatus['kipris']?.count || 0) + (registryStatus['uspto']?.count || 0)
-  if (totalFetched === 0) return null
-  return (
-    <div className="px-5 py-3 bg-navy-700/20 border-t border-navy-600/30 flex flex-wrap items-center gap-x-5 gap-y-1">
-      <span className="text-xs text-slate-400">
-        Records fetched this session: <span className="text-slate-200 font-medium">{totalFetched.toLocaleString()}</span>
-      </span>
-      {kiprisTotal > 0 && (
-        <span className="text-xs text-yellow-400/80">
-          KIPRIS usage: <span className="font-medium">{kiprisTotal.toLocaleString()}</span> records — monitor against your monthly API call limit
-        </span>
-      )}
-    </div>
-  )
-}
-
-// ── Live API status row ───────────────────────────────────────────────────────
-
-function LiveApiCard({ reg, registryStatus }) {
-  const rs     = registryStatus[reg.id] ?? { status: 'idle' }
-  const status = rs.status
-
-  let dot, dotCls, label, labelCls
-  if (status === 'ok') {
-    dot = '●'; dotCls = 'text-green-400'; labelCls = 'text-green-400'
-    label = `Connected · ${rs.count} results`
-  } else if (status === 'loading') {
-    dot = '◌'; dotCls = 'text-accent-blue animate-pulse'; labelCls = 'text-accent-blue'; label = 'Fetching…'
-  } else if (status === 'pending') {
-    dot = '○'; dotCls = 'text-indigo-400'; labelCls = 'text-indigo-400'
-    label = reg.apiPath ? 'Pending credentials' : 'Integration pending'
-  } else if (status === 'error') {
-    dot = '●'; dotCls = 'text-red-400'; labelCls = 'text-red-400'; label = `Error — ${rs.error || 'fetch failed'}`
-  } else if (status === 'no-marks') {
-    dot = '○'; dotCls = 'text-yellow-400'; labelCls = 'text-yellow-400'; label = 'No mark numbers configured'
-  } else {
-    dot = '○'; dotCls = 'text-slate-500'; labelCls = 'text-slate-500'; label = 'Not fetched yet'
-  }
-
-  return (
-    <div className="flex items-center justify-between px-5 py-3 border-b border-navy-600/30 last:border-0 hover:bg-navy-700/20 transition-colors">
-      <div className="flex items-center gap-3">
-        <span className={`text-base leading-none ${dotCls}`}>{dot}</span>
-        <div>
-          <p className="text-sm font-medium text-slate-200">{reg.label}</p>
-          <p className="text-[11px] text-slate-500">{reg.note}</p>
-        </div>
-      </div>
-      <div className="text-right">
-        <p className={`text-xs font-medium ${labelCls}`}>{label}</p>
-        {rs.lastFetched && (
-          <p className="text-[10px] text-slate-500 mt-0.5">{new Date(rs.lastFetched).toLocaleTimeString()}</p>
-        )}
-      </div>
-    </div>
-  )
-}
-
 // ── Upload Manager ────────────────────────────────────────────────────────────
 
 function UploadManager({ csvUploads, onCsvUpload, onCsvClear }) {
@@ -182,7 +118,7 @@ function UploadManager({ csvUploads, onCsvUpload, onCsvClear }) {
   }
 
   function handleUpload() {
-    if (!label.trim()) { setError('Please enter a Country / Registry name'); return }
+    if (!label.trim()) { setError('Please enter a batch name'); return }
     if (!file)          { setError('Please select a file'); return }
     setProcessing(true); setError(null)
 
@@ -263,15 +199,16 @@ function UploadManager({ csvUploads, onCsvUpload, onCsvClear }) {
           <p className="text-sm font-semibold text-white">Add New Upload</p>
 
           <div>
-            <label className="block text-xs font-medium text-slate-400 mb-1.5">Country / Registry name</label>
+            <label className="block text-xs font-medium text-slate-400 mb-1.5">Batch name</label>
             <input
               type="text"
               value={label}
               onChange={e => setLabel(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleUpload()}
-              placeholder='e.g. "India — IP India" · "Israel — ILPO" · "China — CNIPA" · "Japan — JPO"'
+              placeholder='e.g. "Master 2026-Q2" · "Yanolja Group full portfolio" · "KIPRIS pull 2026-05-07"'
               className="w-full px-3 py-2.5 bg-navy-700 border border-navy-500 rounded-lg text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-accent-blue/50 transition-colors"
             />
+            <p className="mt-1 text-[11px] text-slate-500">One file can contain marks for all entities and all registries — they get bucketed automatically using the Applicant + Registry columns.</p>
           </div>
 
           <div>
@@ -429,34 +366,11 @@ function ApiKeyInput({ label, defaultValue = '', placeholder = '•••••�
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function ApiSetup({ registryStatus = {}, csvUploads = [], onCsvUpload, onCsvClear }) {
-  const [syncFreq,   setSyncFreq]   = useState('daily')
-  const [syncWindow, setSyncWindow] = useState('00:00 – 06:00 UTC')
-  const [warnPeriod, setWarnPeriod] = useState('90')
-
+export default function ApiSetup({ csvUploads = [], onCsvUpload, onCsvClear }) {
   return (
     <div className="space-y-5 max-w-4xl">
 
-      {/* ── SECTION 1 — Live API Connections ── */}
-      <div className="bg-navy-800 border border-navy-500 rounded-xl overflow-hidden">
-        <div className="px-5 py-4 border-b border-navy-500 flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-accent-blue/10 border border-accent-blue/20">
-            <Wifi className="w-4 h-4 text-accent-blue" />
-          </div>
-          <div>
-            <h3 className="font-semibold text-white text-sm">Section 1 — Live API Connections</h3>
-            <p className="text-xs text-slate-400 mt-0.5">Registries fetched automatically when you click Refresh All</p>
-          </div>
-        </div>
-        <div className="divide-y divide-navy-600/20">
-          {REGISTRIES.filter(r => r.fetchStrategy !== 'csv' && !r.hidden).map(reg => (
-            <LiveApiCard key={reg.id} reg={reg} registryStatus={registryStatus} />
-          ))}
-        </div>
-        <ApiUsageSummary registryStatus={registryStatus} />
-      </div>
-
-      {/* ── SECTION 2 — Manual Upload Registries ── */}
+      {/* ── CSV Upload ── */}
       <div className="bg-navy-800 border border-navy-500 rounded-xl overflow-hidden">
         <div className="px-5 py-4 border-b border-navy-500 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -464,9 +378,9 @@ export default function ApiSetup({ registryStatus = {}, csvUploads = [], onCsvUp
               <Upload className="w-4 h-4 text-teal-400" />
             </div>
             <div>
-              <h3 className="font-semibold text-white text-sm">Section 2 — Manual Upload Registries</h3>
+              <h3 className="font-semibold text-white text-sm">CSV Upload</h3>
               <p className="text-xs text-slate-400 mt-0.5">
-                Upload CSV or XLSX from any registry — IP India, ILPO, CNIPA, JPO, and more
+                Upload one master CSV/XLSX containing all entities' marks across all registries
               </p>
             </div>
           </div>
@@ -497,82 +411,15 @@ export default function ApiSetup({ registryStatus = {}, csvUploads = [], onCsvUp
       </div>
 
 
-      {/* ── Configure Mark Numbers ── */}
-      <div className="bg-navy-800 border border-navy-500 rounded-xl overflow-hidden">
-        <div className="px-5 py-4 border-b border-navy-500 flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-accent-blue/10 border border-accent-blue/20">
-            <Hash className="w-4 h-4 text-accent-blue" />
-          </div>
-          <div>
-            <h3 className="font-semibold text-white text-sm">Configure Mark Numbers</h3>
-            <p className="text-xs text-slate-400 mt-0.5">
-              IR numbers (WIPO) and serial numbers (USPTO) stored in <code className="text-accent-blue font-mono">src/knownMarks.js</code>
-            </p>
-          </div>
-        </div>
-        <div className="p-5">
-          <div className="mb-4 flex items-start gap-3 px-4 py-3 rounded-lg bg-accent-blue/5 border border-accent-blue/20 text-sm text-slate-300">
-            <AlertCircle className="w-4 h-4 text-accent-blue flex-shrink-0 mt-0.5" />
-            <span>
-              To add mark numbers, ask Claude Code:{' '}
-              <span className="font-mono text-accent-blue">"Add WIPO IR number 1234567 for Yanolja Co., Ltd. in knownMarks.js"</span>.
-              Numbers are fetched automatically on the next dashboard refresh.
-            </span>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="border-b border-navy-600/40">
-                  <th className="px-4 py-2.5 text-left text-[11px] font-semibold text-slate-400 uppercase tracking-wider whitespace-nowrap">Subsidiary</th>
-                  {REGISTRIES.filter(r => r.fetchStrategy === 'numbers').map(reg => (
-                    <th key={reg.id} className="px-4 py-2.5 text-center text-[11px] font-semibold text-slate-400 uppercase tracking-wider whitespace-nowrap">
-                      {reg.label}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {SUBSIDIARIES.filter(s => s.active).map(sub => {
-                  const marks = KNOWN_MARKS[sub.name] ?? {}
-                  return (
-                    <tr key={sub.id} className="border-b border-navy-600/20 hover:bg-navy-700/20 transition-colors">
-                      <td className="px-4 py-3 font-medium text-slate-200 whitespace-nowrap">{sub.shortName}</td>
-                      {REGISTRIES.filter(r => r.fetchStrategy === 'numbers').map(reg => {
-                        const nums = marks[reg.knownMarksKey] ?? []
-                        return (
-                          <td key={reg.id} className="px-4 py-3 text-center">
-                            {nums.length > 0 ? (
-                              <div className="flex flex-wrap gap-1 justify-center">
-                                {nums.map(n => (
-                                  <span key={n} className="px-1.5 py-0.5 rounded font-mono bg-navy-600 border border-navy-500 text-slate-300">
-                                    {n}
-                                  </span>
-                                ))}
-                              </div>
-                            ) : (
-                              <span className="text-slate-600">—</span>
-                            )}
-                          </td>
-                        )
-                      })}
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-
-      {/* ── SECTION 3 — Subsidiary Entities ── */}
+      {/* ── Subsidiary Entities ── */}
       <div className="bg-navy-800 border border-navy-500 rounded-xl overflow-hidden">
         <div className="px-5 py-4 border-b border-navy-500 flex items-center gap-3">
           <div className="p-2 rounded-lg bg-purple-500/10 border border-purple-500/20">
             <Building2 className="w-4 h-4 text-purple-400" />
           </div>
           <div>
-            <h3 className="font-semibold text-white text-sm">Section 3 — Subsidiary Entities</h3>
-            <p className="text-xs text-slate-400 mt-0.5">All 8 subsidiaries tracked by this dashboard — defined in <code className="text-accent-blue font-mono">src/subsidiaries.js</code></p>
+            <h3 className="font-semibold text-white text-sm">Subsidiary Entities</h3>
+            <p className="text-xs text-slate-400 mt-0.5">All {SUBSIDIARIES.filter(s => s.active).length} subsidiaries tracked by this dashboard — defined in <code className="text-accent-blue font-mono">src/subsidiaries.js</code></p>
           </div>
         </div>
         <div className="overflow-x-auto">
@@ -599,59 +446,6 @@ export default function ApiSetup({ registryStatus = {}, csvUploads = [], onCsvUp
         </div>
       </div>
 
-      {/* Sync settings */}
-      <div className="bg-navy-800 border border-navy-500 rounded-xl p-5">
-        <div className="flex items-center gap-2 mb-4">
-          <RefreshCw className="w-4 h-4 text-accent-blue" />
-          <h3 className="font-semibold text-white">Sync Settings</h3>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div>
-            <label className="block text-xs font-medium text-slate-400 mb-1.5">Sync Frequency</label>
-            <select
-              value={syncFreq}
-              onChange={e => setSyncFreq(e.target.value)}
-              className="w-full px-3 py-2.5 bg-navy-700 border border-navy-500 rounded-lg text-sm text-slate-200 focus:outline-none"
-            >
-              <option value="hourly">Every hour</option>
-              <option value="6h">Every 6 hours</option>
-              <option value="daily">Daily</option>
-              <option value="weekly">Weekly</option>
-              <option value="manual">Manual only</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-slate-400 mb-1.5">Sync Window (UTC)</label>
-            <select
-              value={syncWindow}
-              onChange={e => setSyncWindow(e.target.value)}
-              className="w-full px-3 py-2.5 bg-navy-700 border border-navy-500 rounded-lg text-sm text-slate-200 focus:outline-none"
-            >
-              {['00:00 – 06:00 UTC', '06:00 – 12:00 UTC', '12:00 – 18:00 UTC', '18:00 – 00:00 UTC'].map(w => (
-                <option key={w}>{w}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-slate-400 mb-1.5">Renewal Warning Period</label>
-            <select
-              value={warnPeriod}
-              onChange={e => setWarnPeriod(e.target.value)}
-              className="w-full px-3 py-2.5 bg-navy-700 border border-navy-500 rounded-lg text-sm text-slate-200 focus:outline-none"
-            >
-              <option value="90">90 days</option>
-              <option value="180">180 days</option>
-              <option value="365">365 days</option>
-            </select>
-          </div>
-        </div>
-        <div className="mt-4 flex justify-end">
-          <button className="flex items-center gap-2 px-5 py-2.5 bg-accent-blue text-navy-900 font-semibold text-sm rounded-lg hover:bg-accent-blue-bright transition-colors">
-            <Check className="w-4 h-4" />
-            Save Settings
-          </button>
-        </div>
-      </div>
     </div>
   )
 }
