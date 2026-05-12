@@ -102,6 +102,10 @@ by checking the deployment URL.
 6. MST TRAVEL LTD. — Israel — searchKey: "MST TRAVEL"
 7. RightRez, Inc. — United States — searchKey: "RightRez"
 8. Innsoft, Inc. — United States — searchKey: "Innsoft"
+9. Yanolja F&G Co., Ltd. — South Korea — kiprisSearchKey: "야놀자에프앤지"
+10. Yanolja Cloud Go Global Korea Co., Ltd. — South Korea — kiprisSearchKey: "야놀자클라우드고글로벌코리아"
+11. Yanolja Cloud Partners Co., Ltd. — South Korea — kiprisSearchKey: "야놀자클라우드파트너스"
+12. Yanolja Partners Co., Ltd. — South Korea — kiprisSearchKey: "야놀자파트너스"
 
 ## DATA SOURCES
 

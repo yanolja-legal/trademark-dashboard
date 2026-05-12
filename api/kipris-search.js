@@ -50,8 +50,16 @@
  */
 
 import { normaliseTrademarkData } from '../src/normalise.js'
+import { SUBSIDIARIES }           from '../src/subsidiaries.js'
 
 export const config = { runtime: 'nodejs' }
+
+// Subsidiary lookup, sorted by kiprisSearchKey length DESC so the most specific
+// pattern matches first (야놀자클라우드파트너스 before 야놀자클라우드 before 야놀자).
+const KIPRIS_SUBSIDIARIES = SUBSIDIARIES
+  .filter(s => s.kiprisSearchKey)
+  .map(s => ({ id: s.id, key: s.kiprisSearchKey, english: s.name }))
+  .sort((a, b) => b.key.length - a.key.length)
 
 // ── constants ─────────────────────────────────────────────────────────────────
 
@@ -181,20 +189,38 @@ function fmtReg(raw) {
   return s
 }
 
-// Maps partial Korean applicant names (as they appear in KIPRIS) to English entity names
-const KIPRIS_NAME_MAP = [
-  { contains: '야놀자 클라우드', english: 'Yanolja Cloud Pte. Ltd.' },
-  { contains: '놀유니버스',     english: 'Nol Universe Co., Ltd.'  },
-  { contains: '야놀자',         english: 'Yanolja Co., Ltd.'       },
-]
-
-function mapApplicantName(koreanName) {
-  if (!koreanName) return koreanName
-  const match = KIPRIS_NAME_MAP.find(m => koreanName.includes(m.contains))
-  return match ? match.english : koreanName
+/**
+ * Build a precise regex for a Korean kiprisSearchKey: matches the key only when
+ * it is NOT followed by another Korean syllable (so `야놀자` does not match
+ * `야놀자에프앤지` or `야놀자클라우드`).
+ */
+function precisePattern(key) {
+  // Escape regex metachars in the key (defensive — unlikely needed for Korean)
+  const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  return new RegExp(escaped + '(?![가-힣])', 'u')
 }
 
-/** Convert one <TradeMarkInfo> block into a dashboard trademark record. */
+/**
+ * Given a possibly pipe-delimited list of co-owners, return the English name
+ * of the subsidiary precisely matching `queryHolder`, or null if none of the
+ * co-owners match it. Records whose co-owners don't include the queried
+ * subsidiary are filtered out — they belong to a different entity.
+ */
+function identifyOwner(rawName, queryHolder) {
+  if (!rawName) return null
+  const querySub = KIPRIS_SUBSIDIARIES.find(s => s.key === queryHolder)
+  if (!querySub) return null   // unknown subsidiary — should not happen
+
+  const re = precisePattern(querySub.key)
+  const holders = rawName.split('|').map(h => h.trim()).filter(Boolean)
+  for (const holder of holders) {
+    if (re.test(holder)) return { english: querySub.english, id: querySub.id }
+  }
+  return null
+}
+
+/** Convert one <TradeMarkInfo> block into a dashboard trademark record.
+ *  Returns null if no co-owner precisely matches the queried subsidiary. */
 function parseItem(item, queryHolder) {
   const rawApp    = xmlTag(item, 'ApplicationNumber')
   const rawReg    = xmlTag(item, 'RegistrationNumber')
@@ -202,12 +228,14 @@ function parseItem(item, queryHolder) {
   const viennaCode = xmlTag(item, 'ViennaCode')
   const appNo     = fmtApp(rawApp)
 
-  // Prefer current right holder over original applicant for display
-  const koreanHolder = xmlTag(item, 'RegistrationRightholderName') || xmlTag(item, 'ApplicantName') || queryHolder
+  const koreanHolder = xmlTag(item, 'RegistrationRightholderName') || xmlTag(item, 'ApplicantName') || ''
+  const owner = identifyOwner(koreanHolder, queryHolder)
+  if (!owner) return null   // co-owners don't include the queried subsidiary
 
   return {
-    id:               `kipris-${rawApp || queryHolder + Math.random().toString(36).slice(2, 7)}`,
-    applicant:        mapApplicantName(koreanHolder),
+    // ID includes subsidiary so co-owned marks get separate entries per owner
+    id:               `kipris-${owner.id}-${rawApp || Math.random().toString(36).slice(2, 7)}`,
+    applicant:        owner.english,
     markName:         xmlTag(item, 'Title') || '—',
     registry:         'KIPRIS',
     country:          'South Korea',
@@ -309,6 +337,7 @@ export default async function handler(req, res) {
     const rawItems = await fetchAll(regPrivilegeName, accessKey)
     const results  = rawItems
       .map(item => parseItem(item, regPrivilegeName))
+      .filter(r => r !== null)                                    // dropped: co-owners didn't match queried subsidiary
       .filter(r => r.serialNo || r.markName !== '—')
 
     res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate=300')
