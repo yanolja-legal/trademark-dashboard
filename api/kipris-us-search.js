@@ -4,11 +4,18 @@
  * Fetches USPTO trademark data via KIPRIS Foreign Trademark Search.
  * Reuses KIPRIS_API_KEY environment variable.
  *
+ * Search semantics: filtered by CURRENT RIGHT HOLDER (not original applicant).
+ * KIPRIS's freeSearch returns marks where the term appears in any field; we
+ * then read <rightHolder> first (falling back to <applicant> if absent) and
+ * keep only records whose right holder matches one of our known entities.
+ * This captures marks acquired via M&A and correctly drops marks assigned
+ * away from our entities.
+ *
  * Endpoint:
  *   GET http://plus.kipris.or.kr/openapi/rest/ForeignTradeMarkAdvencedSearchService/freeSearch
  *
  * Key parameters:
- *   free             — search term (applicant / mark name)
+ *   free             — search term (applicant / right holder / mark name)
  *   collectionValues — country code: US
  *   currentPage      — page number (1-based)
  *   docsCount        — records per page (max 500)
@@ -80,7 +87,8 @@ function isoDate(raw) {
 function parseItem(item) {
   const appNo      = xmlTag(item, 'applicationNumber')
   const regNo      = xmlTag(item, 'registrationNumber')
-  const applicant  = xmlTag(item, 'applicant') || xmlTag(item, 'rightHolder')
+  // Prefer current right holder over original applicant — captures M&A acquisitions
+  const applicant  = xmlTag(item, 'rightHolder') || xmlTag(item, 'applicant')
 
   return {
     id:               `uspto-${appNo || Math.random().toString(36).slice(2, 9)}`,
