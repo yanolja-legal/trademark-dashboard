@@ -36,6 +36,12 @@ const KIND_MAP = {
   '색채': 'Colour', 'colour': 'Colour', 'color': 'Colour', '색채상표': 'Colour',
   'colour mark': 'Colour', 'color mark': 'Colour',
 
+  // Legal types (USPTO + KIPRIS Korean service-mark prefix)
+  'trademark': 'Trademark', 'trade mark': 'Trademark',
+  'service mark': 'Service Mark', 'servicemark': 'Service Mark',
+  'collective mark': 'Collective Mark', 'collectivemark': 'Collective Mark',
+  'certification mark': 'Certification Mark', 'certificationmark': 'Certification Mark',
+
   // Other
   '기타': 'Other', 'other': 'Other', 'others': 'Other',
   'undefined': 'Other', 'unknown': 'Other', 'null': 'Other',
