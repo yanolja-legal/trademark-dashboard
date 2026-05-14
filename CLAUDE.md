@@ -147,27 +147,19 @@ No parent-child / expand-row UI — flat is sufficient.
 | WIPO Madrid live API | Deprecated 2026-05-07 — dead backend code retained at api/wipo-search.js |
 
 ## DASHBOARD TABS
-1. **Portfolio** — unified trademark table with all registry data
-   - Columns: Applicant, Trademark, Registry, Country, App. No.,
-     Reg. No., Type, Filed, Registered, Status
-   - Loads empty on start — user clicks Refresh All to fetch
-   - Results cached in localStorage with timestamp
-   - Manual upload data merged with live API data
+Three tabs total (Analytics removed 2026-05-13 pending redesign).
 
-2. **By Entity** — one card per subsidiary showing filing counts
-   by registry, registered/pending/expiring/opposed/expired breakdown,
-   last fetch time
+1. **By Entity** — one card per subsidiary plus a comparison table.
+   Dynamic registry columns (only registries present in the data shown).
+   Default tab on app load.
 
-3. **Analytics** — charts from live data:
-   - Status distribution donut chart
-   - Filings over time line chart
-   - NCL class breakdown horizontal bar chart
+2. **Portfolio** — unified trademark table with all registry data.
+   Columns: Rightholder, Trademark, Registry, Country, App. No.,
+   Reg. No., Type, Filed, Registered, Status. Image URL shown as
+   thumbnail next to Trademark when present.
 
-4. **API Setup** — single control panel for ALL data sources:
-   - Registry status cards (all CSV upload)
-   - Universal CSV upload manager (any country, same template)
-   - Download CSV template button
-   - Subsidiary entities list
+3. **Data Upload** — single control panel for CSV uploads + subsidiary list.
+   Universal template + KIPRIS auto-detect (raw KIPRIS export accepted).
 
 ## API ROUTES (in /api folder) — ALL DEAD CODE
 None of these are wired up in src/registries.js any more (apiPath: null

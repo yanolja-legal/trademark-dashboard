@@ -1,9 +1,8 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
-import { Shield, BarChart2, Settings, Database, RefreshCw, Building2 } from 'lucide-react'
+import { Shield, Upload, Database, RefreshCw, Building2 } from 'lucide-react'
 import { format } from 'date-fns'
 import Portfolio  from './components/Portfolio'
 import ByEntity   from './components/ByEntity'
-import Analytics  from './components/Analytics'
 import ApiSetup   from './components/ApiSetup'
 import { SUBSIDIARIES } from './subsidiaries'
 import { REGISTRIES }   from './registries'
@@ -12,10 +11,9 @@ import { KNOWN_MARKS }  from './knownMarks'
 // ── constants ──────────────────────────────────────────────────────────────────
 
 const TABS = [
-  { id: 'entity',    label: 'By Entity',  icon: Building2 },
-  { id: 'portfolio', label: 'Portfolio',  icon: Database  },
-  { id: 'analytics', label: 'Analytics',  icon: BarChart2 },
-  { id: 'api',       label: 'API Setup',  icon: Settings  },
+  { id: 'entity',    label: 'By Entity',    icon: Building2 },
+  { id: 'portfolio', label: 'Portfolio',    icon: Database  },
+  { id: 'api',       label: 'Data Upload',  icon: Upload    },
 ]
 
 const INITIAL_STATUS = Object.fromEntries(
@@ -212,7 +210,7 @@ export default function App() {
           })
 
           try {
-            const term = (reg.searchKeyField ? (sub[reg.searchKeyField] ?? sub.searchKey) : sub.searchKey) ?? sub.name
+            const term = (reg.searchKeyField && sub[reg.searchKeyField]) || sub.name
             const url  = `${reg.apiPath}?${reg.queryParam}=${encodeURIComponent(term)}`
             const res  = await fetchWithTimeout(url)
             const json = await res.json()
@@ -305,7 +303,7 @@ export default function App() {
           setRegistryStatus(prev => ({ ...prev, [reg.id]: { ...prev[reg.id], status: 'pending' } }))
           return
         }
-        const term = (reg.searchKeyField ? (sub[reg.searchKeyField] ?? sub.searchKey) : sub.searchKey) ?? sub.name
+        const term = (reg.searchKeyField && sub[reg.searchKeyField]) || sub.name
         const url  = `${reg.apiPath}?${reg.queryParam}=${encodeURIComponent(term)}`
         const res  = await fetchWithTimeout(url)
         const json = await res.json()
@@ -443,7 +441,6 @@ export default function App() {
             isRefreshing={isRefreshing}
           />
         )}
-        {activeTab === 'analytics' && <Analytics data={combined} />}
         {activeTab === 'api'       && (
           <ApiSetup
             registryStatus={registryStatus}

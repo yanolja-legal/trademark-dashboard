@@ -553,7 +553,7 @@ export default function ApiSetup({ csvUploads = [], onCsvUpload, onCsvClear }) {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-navy-600/40 bg-navy-700/30">
-                {['#', 'Entity', 'Short Name', 'HQ', 'Search Key'].map(h => (
+                {['#', 'Entity', 'Short Name', 'HQ'].map(h => (
                   <th key={h} className="px-5 py-3 text-left text-[11px] font-semibold text-slate-400 uppercase tracking-wider whitespace-nowrap">{h}</th>
                 ))}
               </tr>
@@ -565,7 +565,6 @@ export default function ApiSetup({ csvUploads = [], onCsvUpload, onCsvClear }) {
                   <td className="px-5 py-3 font-medium text-white whitespace-nowrap">{s.name}</td>
                   <td className="px-5 py-3 text-slate-300 whitespace-nowrap">{s.shortName}</td>
                   <td className="px-5 py-3 text-slate-400 text-xs whitespace-nowrap">{s.country}</td>
-                  <td className="px-5 py-3 font-mono text-xs text-accent-blue whitespace-nowrap">{s.searchKey ?? s.name}</td>
                 </tr>
               ))}
             </tbody>
