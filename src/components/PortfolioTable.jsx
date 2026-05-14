@@ -20,6 +20,18 @@ function recordUrl(registry, appNo) {
   }
 }
 
+/** Build a direct image URL for a mark. Returns null when not derivable.
+ *  KIPRIS pattern: https://www.kipris.or.kr/kdtj/remoteFile.do?method=bigImageTM&applno={N}&no={N}_tm000001.jpg
+ *  Broken images hide gracefully via onError. */
+function markImageUrl(registry, appNo) {
+  if (!appNo) return null
+  const n = String(appNo).replace(/\s|-/g, '')
+  if (registry === 'KIPRIS') {
+    return `https://www.kipris.or.kr/kdtj/remoteFile.do?method=bigImageTM&applno=${encodeURIComponent(n)}&no=${encodeURIComponent(n)}_tm000001.jpg`
+  }
+  return null
+}
+
 const COLUMNS = [
   { key: 'applicant',        label: 'Rightholder', w: '160px' },
   { key: 'markName',         label: 'Trademark',  w: '160px' },
@@ -95,19 +107,24 @@ export default function PortfolioTable({
               >
                 <td className="px-4 py-3 text-slate-300 whitespace-nowrap">{tm.applicant}</td>
                 <td className="px-4 py-3 font-semibold text-white whitespace-nowrap">
-                  <div className="flex items-center gap-2">
-                    {tm.imageUrl && (
-                      <a href={tm.imageUrl} target="_blank" rel="noopener noreferrer" title="Open mark image">
-                        <img
-                          src={tm.imageUrl}
-                          alt=""
-                          className="w-8 h-8 rounded border border-navy-500 object-contain bg-navy-700"
-                          onError={e => { e.currentTarget.style.display = 'none' }}
-                        />
-                      </a>
-                    )}
-                    <span>{tm.markName}</span>
-                  </div>
+                  {(() => {
+                    const imgUrl = tm.imageUrl || markImageUrl(tm.registry, tm.serialNo)
+                    return (
+                      <div className="flex items-center gap-2">
+                        {imgUrl && (
+                          <a href={imgUrl} target="_blank" rel="noopener noreferrer" title="Open mark image">
+                            <img
+                              src={imgUrl}
+                              alt=""
+                              className="w-8 h-8 rounded border border-navy-500 object-contain bg-navy-700"
+                              onError={e => { e.currentTarget.parentElement.style.display = 'none' }}
+                            />
+                          </a>
+                        )}
+                        <span>{tm.markName}</span>
+                      </div>
+                    )
+                  })()}
                 </td>
 
                 <td className="px-4 py-3">
