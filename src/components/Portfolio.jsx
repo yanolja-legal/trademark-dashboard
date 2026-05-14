@@ -96,7 +96,6 @@ export default function Portfolio({ data, registryStatus = {}, progress, lastUpd
     total:      data.length,
     registered: data.filter(t => t.status === 'Registered').length,
     pending:    data.filter(t => t.status === 'Pending').length,
-    expiring:   data.filter(t => t.status === 'Expiring Soon').length,
     opposed:    data.filter(t => t.status === 'Opposed').length,
     expired:    data.filter(t => t.status === 'Expired').length,
   }
@@ -104,7 +103,6 @@ export default function Portfolio({ data, registryStatus = {}, progress, lastUpd
     { label: 'Total',         value: summary.total,      color: 'text-accent-blue' },
     { label: 'Registered',    value: summary.registered, color: 'text-green-400'   },
     { label: 'Pending',       value: summary.pending,    color: 'text-yellow-400'  },
-    { label: 'Expiring Soon', value: summary.expiring,   color: 'text-orange-400'  },
     { label: 'Opposed',       value: summary.opposed,    color: 'text-red-400'     },
     { label: 'Expired',       value: summary.expired,    color: 'text-slate-400'   },
   ]

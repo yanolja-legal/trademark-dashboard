@@ -13,7 +13,6 @@ const STATUS_COLORS = {
   'Refused':       '#fb7185',
   'Lapsed':        '#6b7280',
   'Expired':       '#6b7280',
-  'Expiring Soon': '#f97316',
 }
 
 const GRID   = { strokeDasharray: '3 3', stroke: '#1e3a5f' }
@@ -89,7 +88,6 @@ export default function Analytics({ data }) {
       name:            short,
       Registered:      marks.filter(m => m.status === 'Registered').length,
       Pending:         marks.filter(m => m.status === 'Pending').length,
-      'Expiring Soon': marks.filter(m => m.status === 'Expiring Soon').length,
       Opposed:         marks.filter(m => m.status === 'Opposed').length,
       Refused:         marks.filter(m => m.status === 'Refused').length,
       Lapsed:          marks.filter(m => m.status === 'Lapsed').length,
@@ -185,7 +183,6 @@ export default function Analytics({ data }) {
             <Legend formatter={v => <span style={{ color: '#94a3b8', fontSize: '12px' }}>{v}</span>} />
             <Bar dataKey="Registered"    stackId="s" fill={STATUS_COLORS['Registered']}    />
             <Bar dataKey="Pending"       stackId="s" fill={STATUS_COLORS['Pending']}       />
-            <Bar dataKey="Expiring Soon" stackId="s" fill={STATUS_COLORS['Expiring Soon']} />
             <Bar dataKey="Opposed"       stackId="s" fill={STATUS_COLORS['Opposed']}       />
             <Bar dataKey="Refused"       stackId="s" fill={STATUS_COLORS['Refused']}       />
             <Bar dataKey="Lapsed"        stackId="s" fill={STATUS_COLORS['Lapsed']}        />

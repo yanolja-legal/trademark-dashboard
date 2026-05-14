@@ -27,7 +27,7 @@ export const REGISTRIES = [
     queryParam:     null,
     requiresKey:    false,
     note:           'Manual CSV upload — export from WIPO Madrid Monitor and upload below',
-    csvColumns:     ['Applicant', 'Mark Name', 'Application No.', 'Registration No.', 'NCL Class', 'Filed Date', 'Registration Date', 'Expiry Date', 'Status'],
+    csvColumns:     ['Applicant', 'Mark Name', 'Application No.', 'Registration No.', 'NCL Class', 'Filed Date', 'Registration Date', 'Status'],
   },
   {
     id:             'uspto',
@@ -38,7 +38,7 @@ export const REGISTRIES = [
     queryParam:     null,
     requiresKey:    false,
     note:           'Manual CSV upload — export from tsdr.uspto.gov and upload below',
-    csvColumns:     ['Applicant', 'Mark Name', 'Application No.', 'Registration No.', 'NCL Class', 'Filed Date', 'Registration Date', 'Expiry Date', 'Status'],
+    csvColumns:     ['Applicant', 'Mark Name', 'Application No.', 'Registration No.', 'NCL Class', 'Filed Date', 'Registration Date', 'Status'],
   },
   {
     id:            'ipindia',
@@ -50,7 +50,7 @@ export const REGISTRIES = [
     knownMarksKey: 'ipindia',
     requiresKey:   false,
     note:          'Manual CSV upload — download from ipindia.gov.in and upload below',
-    csvColumns:    ['Applicant', 'Mark Name', 'Application No.', 'Registration No.', 'NCL Class', 'Filed Date', 'Registration Date', 'Expiry Date', 'Status'],
+    csvColumns:    ['Applicant', 'Mark Name', 'Application No.', 'Registration No.', 'NCL Class', 'Filed Date', 'Registration Date', 'Status'],
   },
   {
     id:            'ilpo',
@@ -62,7 +62,7 @@ export const REGISTRIES = [
     knownMarksKey: 'ilpo',
     requiresKey:   false,
     note:          'Manual CSV upload — download from trademarks.justice.gov.il and upload below',
-    csvColumns:    ['Applicant', 'Mark Name', 'Application No.', 'Registration No.', 'NCL Class', 'Filed Date', 'Registration Date', 'Expiry Date', 'Status'],
+    csvColumns:    ['Applicant', 'Mark Name', 'Application No.', 'Registration No.', 'NCL Class', 'Filed Date', 'Registration Date', 'Status'],
   },
   {
     id:             'kipris',
@@ -73,6 +73,6 @@ export const REGISTRIES = [
     queryParam:     null,
     requiresKey:    false,
     note:           'Manual CSV upload — export from kipris.or.kr and upload below',
-    csvColumns:     ['Applicant', 'Mark Name', 'Application No.', 'Registration No.', 'NCL Class', 'Filed Date', 'Registration Date', 'Expiry Date', 'Status'],
+    csvColumns:     ['Applicant', 'Mark Name', 'Application No.', 'Registration No.', 'NCL Class', 'Filed Date', 'Registration Date', 'Status'],
   },
 ]
