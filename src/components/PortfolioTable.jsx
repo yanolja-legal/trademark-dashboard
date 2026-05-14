@@ -1,24 +1,9 @@
 import React from 'react'
-import { ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Loader2, ExternalLink } from 'lucide-react'
+import { ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react'
 import {
   fmt, DesignatedCountriesTooltip,
   STATUS_STYLES, REGISTRY_STYLES, REGISTRY_DEFAULT,
 } from './PortfolioBadges'
-
-/** Build a deep-link URL to the official registry record for an application number.
- *  Returns null when the registry isn't supported or the app number is missing. */
-function recordUrl(registry, appNo) {
-  if (!appNo) return null
-  const n = String(appNo).replace(/\s|-/g, '')
-  switch (registry) {
-    case 'KIPRIS':      return `https://kpat.kipris.or.kr/kpat/biblioa.do?method=biblioFrame&applno=${encodeURIComponent(n)}`
-    case 'USPTO':       return `https://tsdr.uspto.gov/#caseNumber=${encodeURIComponent(n)}&searchType=statusSearch`
-    case 'WIPO Madrid': return `https://www3.wipo.int/madrid/monitor/en/showData.jsp?ID=${encodeURIComponent(n.replace(/^ROM\./i, ''))}`
-    case 'IP India':    return `https://tmrsearch.ipindia.gov.in/eregister/Application_View.aspx?TMNo=${encodeURIComponent(n)}`
-    case 'ILPO':        return `https://trademarks.justice.gov.il/TradeMarksWebSiteUI/SearchResults/SearchResults.aspx?TMNumber=${encodeURIComponent(n)}`
-    default:            return null
-  }
-}
 
 /** Build a direct image URL for a mark. Returns null when not derivable.
  *  KIPRIS pattern: https://www.kipris.or.kr/kdtj/remoteFile.do?method=bigImageTM&applno={N}&no={N}_tm000001.jpg
@@ -147,23 +132,7 @@ export default function PortfolioTable({
                   )}
                 </td>
 
-                <td className="px-4 py-3 font-mono text-xs whitespace-nowrap">
-                  {tm.serialNo ? (() => {
-                    const url = recordUrl(tm.registry, tm.serialNo)
-                    return url ? (
-                      <a
-                        href={url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        title={`Open ${tm.registry} record for ${tm.serialNo}`}
-                        className="inline-flex items-center gap-1 text-accent-blue hover:text-accent-blue-bright hover:underline transition-colors"
-                      >
-                        {tm.serialNo}
-                        <ExternalLink className="w-3 h-3 opacity-60" />
-                      </a>
-                    ) : <span className="text-slate-400">{tm.serialNo}</span>
-                  })() : <span className="text-slate-500">—</span>}
-                </td>
+                <td className="px-4 py-3 font-mono text-xs text-slate-400 whitespace-nowrap">{tm.serialNo || '—'}</td>
                 <td className="px-4 py-3 font-mono text-xs text-slate-400 whitespace-nowrap">{tm.regNo || '—'}</td>
                 <td className="px-4 py-3 text-slate-300 whitespace-nowrap">{tm.kindOfMark}</td>
                 <td className="px-4 py-3 text-xs text-slate-400 whitespace-nowrap">{fmt(tm.applicationDate)}</td>
