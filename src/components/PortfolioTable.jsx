@@ -6,7 +6,7 @@ import {
 } from './PortfolioBadges'
 
 const COLUMNS = [
-  { key: 'applicant',        label: 'Applicant',  w: '160px' },
+  { key: 'applicant',        label: 'Rightholder', w: '160px' },
   { key: 'markName',         label: 'Trademark',  w: '160px' },
   { key: 'registry',         label: 'Registry',   w: '105px' },
   { key: 'country',          label: 'Country',    w: '150px' },

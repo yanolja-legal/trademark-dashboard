@@ -12,7 +12,7 @@ import PortfolioTable from './PortfolioTable'
 const PAGE_SIZE = 10
 
 const SORT_OPTIONS = [
-  { label: 'Applicant',  key: 'applicant'        },
+  { label: 'Rightholder', key: 'applicant'       },
   { label: 'Trademark',  key: 'markName'          },
   { label: 'Filed',      key: 'applicationDate'   },
   { label: 'Registry',   key: 'registry'          },
@@ -73,7 +73,7 @@ export default function Portfolio({ data, registryStatus = {}, progress, lastUpd
   }
 
   function downloadCSV() {
-    const headers = ['Applicant','Trademark','Registry','Country','App. No.','Reg. No.','Type','Filed','Registered','Status']
+    const headers = ['Rightholder','Trademark','Registry','Country','App. No.','Reg. No.','Type','Filed','Registered','Status']
     const esc     = v => `"${String(v ?? '').replace(/"/g, '""')}"`
     const lines   = [
       headers.join(','),
@@ -204,7 +204,7 @@ export default function Portfolio({ data, registryStatus = {}, progress, lastUpd
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
           <input
             type="text"
-            placeholder="Search mark, applicant, serial no…"
+            placeholder="Search mark, rightholder, serial no…"
             value={search}
             onChange={e => { setSearch(e.target.value); setPage(1) }}
             className="w-full pl-10 pr-9 py-2.5 bg-navy-800 border border-navy-500 rounded-lg text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-accent-blue/50 transition-colors"

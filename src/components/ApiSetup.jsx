@@ -37,7 +37,7 @@ function parseCsv(text) {
 // Falls back to uploadMeta.label if those columns are blank.
 function normaliseCsvRow(row, uploadMeta, idx) {
   const get = (...keys) => { for (const k of keys) { const v = row[k] || ''; if (v) return v } return '' }
-  const applicant        = get('applicant')
+  const applicant        = get('rightholder', 'right_holder', 'applicant')
   const markName         = get('mark_name', 'trademark_name', 'trademark', 'mark', 'brand')
   const appNo            = get('application_no_', 'application_no', 'serial_no', 'serial_number', 'app_no')
   const regNo            = get('registration_no_', 'registration_no', 'reg_no')
@@ -72,7 +72,7 @@ function normaliseCsvRow(row, uploadMeta, idx) {
 // Download a pre-formatted 13-column template with 2 example rows.
 function downloadCsvTemplate() {
   const headers = [
-    'Applicant', 'Mark Name', 'Application No.', 'Registration No.', 'Kind of Mark',
+    'Rightholder', 'Mark Name', 'Application No.', 'Registration No.', 'Kind of Mark',
     'NCL Class', 'Country of Filing', 'Registry', 'Filed Date', 'Publication Date',
     'Registration Date', 'Current Status',
   ]
@@ -224,7 +224,7 @@ function UploadManager({ csvUploads, onCsvUpload, onCsvClear }) {
               placeholder='e.g. "Master 2026-Q2" · "Yanolja Group full portfolio" · "KIPRIS pull 2026-05-07"'
               className="w-full px-3 py-2.5 bg-navy-700 border border-navy-500 rounded-lg text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-accent-blue/50 transition-colors"
             />
-            <p className="mt-1 text-[11px] text-slate-500">One file can contain marks for all entities and all registries — they get bucketed automatically using the Applicant + Registry columns.</p>
+            <p className="mt-1 text-[11px] text-slate-500">One file can contain marks for all entities and all registries — they get bucketed automatically using the Rightholder + Registry columns.</p>
           </div>
 
           <div>
@@ -411,7 +411,7 @@ export default function ApiSetup({ csvUploads = [], onCsvUpload, onCsvClear }) {
 
         <div className="px-5 py-2 bg-navy-700/20 border-b border-navy-600/30">
           <p className="text-[11px] text-slate-500 font-mono">
-            Template columns: Applicant · Mark Name · Application No. · Registration No. · Kind of Mark ·
+            Template columns: Rightholder · Mark Name · Application No. · Registration No. · Kind of Mark ·
             NCL Class · <span className="text-teal-400">Country of Filing</span> · <span className="text-teal-400">Registry</span> ·
             Filed Date · Publication Date · Registration Date · Current Status
           </p>
