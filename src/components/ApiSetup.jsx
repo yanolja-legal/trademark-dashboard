@@ -13,10 +13,28 @@ const KIPRIS_NAME_LOOKUP = SUBSIDIARIES
 // ── CSV helpers ───────────────────────────────────────────────────────────────
 
 function parseCsv(text) {
-  // Multi-line cell support: handle CRLF, but preserve LF inside quoted fields
-  text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+  // Strip UTF-8 BOM + normalise newlines (preserves LF inside quoted fields).
+  text = text.replace(/^﻿/, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n')
 
-  // Tokenise into records with proper quote-aware parsing (supports embedded newlines)
+  // Detect delimiter: honour Excel/WIPO `sep=X` directive, else pick the most frequent
+  // of comma / semicolon / tab in the first 30 lines. Lets KIPRIS (comma), Madrid
+  // Monitor (semicolon), and TSV exports all parse with one code path.
+  let delim = ','
+  const sepMatch = text.match(/^\s*sep=(.)/m)
+  if (sepMatch) {
+    delim = sepMatch[1]
+  } else {
+    const sample = text.split('\n').slice(0, 30).join('\n')
+    const counts = {
+      ',':  (sample.match(/,/g)  || []).length,
+      ';':  (sample.match(/;/g)  || []).length,
+      '\t': (sample.match(/\t/g) || []).length,
+    }
+    const winner = Object.entries(counts).reduce((a, b) => b[1] > a[1] ? b : a)
+    if (winner[1] > 0) delim = winner[0]
+  }
+
+  // Tokenise into records with proper quote-aware parsing (supports embedded newlines).
   const rows = []
   let cur = '', inQuote = false, fields = []
   for (let i = 0; i < text.length; i++) {
@@ -24,7 +42,7 @@ function parseCsv(text) {
     if (ch === '"') {
       if (inQuote && text[i + 1] === '"') { cur += '"'; i++ }
       else inQuote = !inQuote
-    } else if (ch === ',' && !inQuote) {
+    } else if (ch === delim && !inQuote) {
       fields.push(cur); cur = ''
     } else if (ch === '\n' && !inQuote) {
       fields.push(cur); rows.push(fields); fields = []; cur = ''
@@ -34,8 +52,10 @@ function parseCsv(text) {
   }
   if (cur.length > 0 || fields.length > 0) { fields.push(cur); rows.push(fields) }
 
-  // Find the header row — first row with at least 2 non-empty cells (skips KIPRIS preamble)
-  let headerIdx = rows.findIndex(r => r.filter(c => c.trim()).length >= 2)
+  // Find the header row — first row with at least 4 non-empty cells. Real headers are
+  // always wider than preamble lines (Madrid Monitor `time;...` = 2 cells; KIPRIS
+  // search-summary lines = 1-2 cells), so this reliably skips boilerplate.
+  let headerIdx = rows.findIndex(r => r.filter(c => c.trim()).length >= 4)
   if (headerIdx < 0) return []
 
   const rawHeaders   = rows[headerIdx].map(h => h.trim())
@@ -43,6 +63,8 @@ function parseCsv(text) {
 
   return rows.slice(headerIdx + 1)
     .filter(r => r.some(c => c.trim()))
+    // Strip trailing `sep=X` directive Madrid Monitor appends to its export.
+    .filter(r => !(r.length <= 2 && /^sep=/.test((r[0] || '').trim())))
     .map(vals => {
       const row = {}
       rawHeaders.forEach((rawH, i) => {
@@ -139,6 +161,45 @@ function normaliseKiprisRow(row, uploadMeta, idx) {
     imageUrl,
     source:           'csv',
   }))
+}
+
+// ── WIPO Madrid Monitor helpers ───────────────────────────────────────────────
+
+// Detect a WIPO Madrid Monitor export by its distinctive `Int. Reg. No.` column.
+function isMadridRow(row) {
+  return Object.keys(row).some(k => /int\.?\s*reg\.?\s*no/i.test(k))
+}
+
+// Convert one Madrid Monitor row into a dashboard record. Country is set to
+// 'International' — Madrid Monitor's basic export only gives IRN-level rows
+// (no designated-country breakdown).
+function normaliseMadridRow(row, uploadMeta, idx) {
+  const get = (...keys) => { for (const k of keys) { const v = row[k] || ''; if (v) return v } return '' }
+  const applicant        = get('Holder', 'holder')
+  const markName         = get('Trademark', 'trademark')
+  const irn              = get('Int. Reg. No.', 'int_reg_no_', 'int_reg_no')
+  const ncl              = get('Nice Cl.', 'nice_cl_', 'nice_cl')
+  const registrationDate = get('Reg. Date', 'reg_date')
+  const status           = get('Status', 'status')
+  return normaliseTrademarkData({
+    id:               `csv-${uploadMeta.id}-${irn || idx}`,
+    uploadId:         uploadMeta.id,
+    uploadLabel:      uploadMeta.label,
+    registry:         'WIPO Madrid',
+    country:          'International',
+    applicant,
+    markName:         markName || '—',
+    serialNo:         irn,
+    regNo:            irn,                            // Madrid IRN serves as both app and reg number
+    kindOfMark:       '—',
+    ncl,
+    applicationDate:  '',
+    publicationDate:  '',
+    registrationDate,
+    status,
+    imageUrl:         '',
+    source:           'csv',
+  })
 }
 
 // Universal normalisation — reads Country of Filing and Registry from CSV columns.
@@ -256,7 +317,11 @@ function UploadManager({ csvUploads, onCsvUpload, onCsvClear }) {
         setProcessing(false); return
       }
       const marks = rows
-        .flatMap((r, i) => isKiprisRow(r) ? normaliseKiprisRow(r, uploadMeta, i) : [normaliseCsvRow(r, uploadMeta, i)])
+        .flatMap((r, i) => {
+          if (isKiprisRow(r)) return normaliseKiprisRow(r, uploadMeta, i)
+          if (isMadridRow(r)) return [normaliseMadridRow(r, uploadMeta, i)]
+          return [normaliseCsvRow(r, uploadMeta, i)]
+        })
         .filter(m => m.applicant || m.markName !== '—')
       if (!marks.length) {
         setError('No valid trademark rows found — column headers must match the template (download it above)')

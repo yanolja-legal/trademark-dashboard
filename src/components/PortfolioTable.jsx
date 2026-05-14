@@ -17,6 +17,17 @@ function markImageUrl(registry, appNo) {
   return null
 }
 
+/** Build a direct deep-link URL to the registry's detail page for this mark.
+ *  WIPO Madrid: showData.jsp?ID=ROM.{IRN}. Returns null when no working pattern. */
+function recordUrl(registry, appNo) {
+  if (!appNo) return null
+  const n = String(appNo).replace(/\s|-/g, '')
+  if (registry === 'WIPO Madrid') {
+    return `https://www3.wipo.int/madrid/monitor/en/showData.jsp?ID=ROM.${encodeURIComponent(n)}`
+  }
+  return null
+}
+
 const COLUMNS = [
   { key: 'applicant',        label: 'Rightholder', w: '160px' },
   { key: 'markName',         label: 'Trademark',  w: '160px' },
@@ -132,7 +143,15 @@ export default function PortfolioTable({
                   )}
                 </td>
 
-                <td className="px-4 py-3 font-mono text-xs text-slate-400 whitespace-nowrap">{tm.serialNo || '—'}</td>
+                <td className="px-4 py-3 font-mono text-xs whitespace-nowrap">
+                  {(() => {
+                    const url = recordUrl(tm.registry, tm.serialNo)
+                    if (!tm.serialNo) return <span className="text-slate-400">—</span>
+                    return url
+                      ? <a href={url} target="_blank" rel="noopener noreferrer" className="text-accent-blue hover:underline">{tm.serialNo}</a>
+                      : <span className="text-slate-400">{tm.serialNo}</span>
+                  })()}
+                </td>
                 <td className="px-4 py-3 font-mono text-xs text-slate-400 whitespace-nowrap">{tm.regNo || '—'}</td>
                 <td className="px-4 py-3 text-slate-300 whitespace-nowrap">{tm.kindOfMark}</td>
                 <td className="px-4 py-3 text-xs text-slate-400 whitespace-nowrap">{fmt(tm.applicationDate)}</td>
