@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react'
 import { Building2, XCircle, Upload, Download, Trash2, Plus, FileText } from 'lucide-react'
 import { format } from 'date-fns'
 import { SUBSIDIARIES } from '../subsidiaries.js'
-import { normaliseTrademarkData } from '../normalise.js'
+import { normaliseTrademarkData, canonicaliseApplicant } from '../normalise.js'
 
 // Build the Korean-name → subsidiary lookup once. Sorted by key length DESC so the
 // most-specific match wins (e.g., 야놀자클라우드파트너스 before 야놀자클라우드 before 야놀자).
@@ -175,7 +175,7 @@ function isMadridRow(row) {
 // (no designated-country breakdown).
 function normaliseMadridRow(row, uploadMeta, idx) {
   const get = (...keys) => { for (const k of keys) { const v = row[k] || ''; if (v) return v } return '' }
-  const applicant        = get('Holder', 'holder')
+  const applicant        = canonicaliseApplicant(get('Holder', 'holder'))
   const markName         = get('Trademark', 'trademark')
   const irn              = get('Int. Reg. No.', 'int_reg_no_', 'int_reg_no')
   const ncl              = get('Nice Cl.', 'nice_cl_', 'nice_cl')
@@ -206,7 +206,7 @@ function normaliseMadridRow(row, uploadMeta, idx) {
 // Falls back to uploadMeta.label if those columns are blank.
 function normaliseCsvRow(row, uploadMeta, idx) {
   const get = (...keys) => { for (const k of keys) { const v = row[k] || ''; if (v) return v } return '' }
-  const applicant        = get('rightholder', 'right_holder', 'applicant')
+  const applicant        = canonicaliseApplicant(get('rightholder', 'right_holder', 'applicant'))
   const markName         = get('mark_name', 'trademark_name', 'trademark', 'mark', 'brand')
   const appNo            = get('application_no_', 'application_no', 'serial_no', 'serial_number', 'app_no')
   const regNo            = get('registration_no_', 'registration_no', 'reg_no')

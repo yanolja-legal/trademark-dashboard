@@ -6,6 +6,8 @@
  * If a registry adds a new raw value, add it to the relevant map below.
  */
 
+import { SUBSIDIARIES } from './subsidiaries.js'
+
 // ── KIND OF MARK ────────────────────────────────────────────────────────────
 // Raw value (lowercased, trimmed) → standard label.
 const KIND_MAP = {
@@ -86,6 +88,44 @@ const STATUS_MAP = {
   // Refused
   'refused': 'Refused', '거절': 'Refused', 'rejected': 'Refused',
   '거절결정': 'Refused', 'refusal': 'Refused',
+}
+
+// ── APPLICANT CANONICALISATION ──────────────────────────────────────────────
+// Reduce a company name to a comparison key: lowercase, strip punctuation,
+// collapse whitespace. "YANOLJA CO., LTD." → "yanolja co ltd".
+function normaliseCompanyName(name) {
+  return String(name || '')
+    .toLowerCase()
+    .replace(/[.,'`"]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+// Build the lookup once. English entries match by normalised equality; Korean
+// entries (from kiprisSearchKeys) match by substring with a non-Korean lookahead
+// so that "야놀자" matches "주식회사 야놀자" but NOT "야놀자클라우드".
+const APPLICANT_LOOKUP = SUBSIDIARIES.flatMap(s => {
+  const out = [{ kind: 'norm', value: normaliseCompanyName(s.name), canonical: s.name }]
+  ;(s.kiprisSearchKeys || []).forEach(k => out.push({ kind: 'kr', value: k, canonical: s.name }))
+  return out
+}).sort((a, b) => (b.value || '').length - (a.value || '').length)
+
+/**
+ * Map a raw applicant string to the canonical subsidiary name when recognised
+ * (case- and punctuation-insensitive, plus Korean-name fallback). Returns the
+ * raw value unchanged when no subsidiary matches — non-subsidiary marks pass
+ * through untouched.
+ */
+export function canonicaliseApplicant(rawApplicant) {
+  if (!rawApplicant) return rawApplicant
+  const norm = normaliseCompanyName(rawApplicant)
+  const exact = APPLICANT_LOOKUP.find(e => e.kind === 'norm' && e.value === norm)
+  if (exact) return exact.canonical
+  const kr = APPLICANT_LOOKUP.find(e => {
+    if (e.kind !== 'kr') return false
+    return new RegExp(e.value + '(?![가-힣])', 'u').test(rawApplicant)
+  })
+  return kr ? kr.canonical : rawApplicant
 }
 
 /** Normalise a raw "kind of mark" value. Falls back to "Other" if unknown. */
