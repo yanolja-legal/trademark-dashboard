@@ -42,6 +42,12 @@ const KIND_MAP = {
   'collective mark': 'Collective Mark', 'collectivemark': 'Collective Mark',
   'certification mark': 'Certification Mark', 'certificationmark': 'Certification Mark',
 
+  // KIPRIS-specific 명칭구분 values
+  '영문상표': 'Word',      // Latin-script mark
+  '한글상표': 'Word',      // Hangul mark
+  '도형복합': 'Combined',  // figurative + character
+  '복합문자': 'Combined',  // compound character
+
   // Other
   '기타': 'Other', 'other': 'Other', 'others': 'Other',
   'undefined': 'Other', 'unknown': 'Other', 'null': 'Other',

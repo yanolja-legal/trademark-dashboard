@@ -4,33 +4,141 @@ import { format } from 'date-fns'
 import { SUBSIDIARIES } from '../subsidiaries.js'
 import { normaliseTrademarkData } from '../normalise.js'
 
+// Build the Korean-name → subsidiary lookup once. Sorted by key length DESC so the
+// most-specific match wins (e.g., 야놀자클라우드파트너스 before 야놀자클라우드 before 야놀자).
+const KIPRIS_NAME_LOOKUP = SUBSIDIARIES
+  .flatMap(s => (s.kiprisSearchKeys || []).map(k => ({ key: k, english: s.name })))
+  .sort((a, b) => b.key.length - a.key.length)
+
 // ── CSV helpers ───────────────────────────────────────────────────────────────
 
 function parseCsv(text) {
-  const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n').filter(l => l.trim())
-  if (lines.length < 2) return []
-  const parseRow = line => {
-    const fields = []
-    let cur = '', inQuote = false
-    for (let i = 0; i < line.length; i++) {
-      const ch = line[i]
-      if (ch === '"') {
-        if (inQuote && line[i + 1] === '"') { cur += '"'; i++ }
-        else inQuote = !inQuote
-      } else if (ch === ',' && !inQuote) {
-        fields.push(cur.trim()); cur = ''
-      } else {
-        cur += ch
-      }
+  // Multi-line cell support: handle CRLF, but preserve LF inside quoted fields
+  text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+
+  // Tokenise into records with proper quote-aware parsing (supports embedded newlines)
+  const rows = []
+  let cur = '', inQuote = false, fields = []
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i]
+    if (ch === '"') {
+      if (inQuote && text[i + 1] === '"') { cur += '"'; i++ }
+      else inQuote = !inQuote
+    } else if (ch === ',' && !inQuote) {
+      fields.push(cur); cur = ''
+    } else if (ch === '\n' && !inQuote) {
+      fields.push(cur); rows.push(fields); fields = []; cur = ''
+    } else {
+      cur += ch
     }
-    fields.push(cur.trim())
-    return fields
   }
-  const headers = parseRow(lines[0]).map(h => h.toLowerCase().replace(/[^a-z0-9]+/g, '_'))
-  return lines.slice(1).map(line => {
-    const vals = parseRow(line)
-    return Object.fromEntries(headers.map((h, i) => [h, vals[i] ?? '']))
-  })
+  if (cur.length > 0 || fields.length > 0) { fields.push(cur); rows.push(fields) }
+
+  // Find the header row — first row with at least 2 non-empty cells (skips KIPRIS preamble)
+  let headerIdx = rows.findIndex(r => r.filter(c => c.trim()).length >= 2)
+  if (headerIdx < 0) return []
+
+  const rawHeaders   = rows[headerIdx].map(h => h.trim())
+  const normHeaders  = rawHeaders.map(h => h.toLowerCase().replace(/[^a-z0-9]+/g, '_'))
+
+  return rows.slice(headerIdx + 1)
+    .filter(r => r.some(c => c.trim()))
+    .map(vals => {
+      const row = {}
+      rawHeaders.forEach((rawH, i) => {
+        const v = (vals[i] ?? '').trim()
+        if (rawH) row[rawH] = v                                  // original Korean / display header
+        if (normHeaders[i]) row[normHeaders[i]] = v               // normalised ASCII key
+      })
+      return row
+    })
+}
+
+// ── KIPRIS-specific helpers ───────────────────────────────────────────────────
+
+// Detect a KIPRIS export by presence of the distinctive 최종권리자 column.
+function isKiprisRow(row) {
+  return '최종권리자(순번/최종권리자/특허고객번호/개인법인구분/주소/대표자명)' in row
+      || '최종권리자' in row
+      || Object.keys(row).some(k => k.startsWith('최종권리자'))
+}
+
+// Find the KIPRIS column key whose name starts with the given Korean prefix.
+function kiprisCol(row, prefix) {
+  const key = Object.keys(row).find(k => k.startsWith(prefix))
+  return key ? row[key] : ''
+}
+
+// Convert KIPRIS date format 'YYYY.MM.DD' → 'YYYY-MM-DD'.
+function kiprisDate(raw) {
+  if (!raw) return ''
+  const m = raw.trim().match(/^(\d{4})\.(\d{2})\.(\d{2})$/)
+  return m ? `${m[1]}-${m[2]}-${m[3]}` : raw
+}
+
+// Parse the 최종권리자 composite field — split on newlines (co-owners) then on '/'
+// to extract field [1] (the entity name). Returns an array of {korean, mapped} pairs
+// where `mapped` is the English subsidiary name if recognised, else null.
+function parseKiprisHolders(rawField) {
+  if (!rawField) return []
+  return rawField
+    .split(/\r?\n/)
+    .map(line => line.trim())
+    .filter(Boolean)
+    .map(line => {
+      const parts = line.split('/')
+      const korean = (parts[1] || '').trim()
+      if (!korean) return null
+      // Find which subsidiary the holder name matches. Precise match: name must
+      // contain a kiprisSearchKey followed by a non-Korean boundary character.
+      const found = KIPRIS_NAME_LOOKUP.find(({ key }) => {
+        const re = new RegExp(key + '(?![가-힣])', 'u')
+        return re.test(korean)
+      })
+      return { korean, mapped: found ? found.english : null }
+    })
+    .filter(Boolean)
+}
+
+// Convert one KIPRIS row into an array of dashboard records — one per right-holder
+// for co-owned marks. Multi-holder rows produce multiple entries so each entity is
+// counted independently.
+function normaliseKiprisRow(row, uploadMeta, idx) {
+  const markName        = (kiprisCol(row, '상표명칭') || '').trim()
+  const appNo           = (kiprisCol(row, '출원(국제등록)번호') || kiprisCol(row, '출원번호') || '').trim()
+  const regNo           = (kiprisCol(row, '등록번호') || '').trim()
+  const ncl             = (kiprisCol(row, '상품분류') || '').trim()
+  const kindOfMark      = (kiprisCol(row, '명칭구분') || '').trim()
+  const applicationDate = kiprisDate(kiprisCol(row, '출원(국제등록)일자') || kiprisCol(row, '출원일자'))
+  const publicationDate = kiprisDate(kiprisCol(row, '출원공고일자'))
+  const registrationDate = kiprisDate(kiprisCol(row, '등록일자'))
+  const status          = (kiprisCol(row, '법적상태') || '').trim()
+  const imageUrl        = (kiprisCol(row, '대표도면') || '').trim()
+
+  const holders = parseKiprisHolders(kiprisCol(row, '최종권리자'))
+  if (holders.length === 0) {
+    holders.push({ korean: '', mapped: null })  // emit one row with empty rightholder
+  }
+
+  return holders.map((h, hIdx) => normaliseTrademarkData({
+    id:               `csv-${uploadMeta.id}-${appNo || idx}-${hIdx}`,
+    uploadId:         uploadMeta.id,
+    uploadLabel:      uploadMeta.label,
+    registry:         'KIPRIS',
+    country:          'South Korea',
+    applicant:        h.mapped || h.korean || '',
+    markName:         markName === '(상표명 정보없음)' ? '' : (markName || '—'),
+    serialNo:         appNo,
+    regNo,
+    kindOfMark:       kindOfMark || '—',
+    ncl,
+    applicationDate,
+    publicationDate,
+    registrationDate,
+    status,
+    imageUrl,
+    source:           'csv',
+  }))
 }
 
 // Universal normalisation — reads Country of Filing and Registry from CSV columns.
@@ -147,8 +255,9 @@ function UploadManager({ csvUploads, onCsvUpload, onCsvClear }) {
         setError('File appears empty or unparseable — check that it has at least one data row')
         setProcessing(false); return
       }
-      const marks = rows.map((r, i) => normaliseCsvRow(r, uploadMeta, i))
-                        .filter(m => m.applicant || m.markName !== '—')
+      const marks = rows
+        .flatMap((r, i) => isKiprisRow(r) ? normaliseKiprisRow(r, uploadMeta, i) : [normaliseCsvRow(r, uploadMeta, i)])
+        .filter(m => m.applicant || m.markName !== '—')
       if (!marks.length) {
         setError('No valid trademark rows found — column headers must match the template (download it above)')
         setProcessing(false); return
