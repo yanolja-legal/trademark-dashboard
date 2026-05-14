@@ -48,7 +48,8 @@ function normaliseCsvRow(row, uploadMeta, idx) {
   const applicationDate  = get('filed_date', 'filing_date', 'application_date')
   const publicationDate  = get('publication_date', 'pub_date')
   const registrationDate = get('registration_date', 'registered')
-  const status = get('current_status', 'status', 'trademark_status')
+  const status   = get('current_status', 'status', 'trademark_status')
+  const imageUrl = get('image_url', 'image_path', 'image', 'thumbnail')
   return normaliseTrademarkData({
     id:               `csv-${uploadMeta.id}-${appNo || idx}`,
     uploadId:         uploadMeta.id,
@@ -65,6 +66,7 @@ function normaliseCsvRow(row, uploadMeta, idx) {
     publicationDate,
     registrationDate,
     status,
+    imageUrl,
     source:           'csv',
   })
 }
@@ -74,35 +76,35 @@ function downloadCsvTemplate() {
   const headers = [
     'Rightholder', 'Mark Name', 'Application No.', 'Registration No.', 'Kind of Mark',
     'NCL Class', 'Country of Filing', 'Registry', 'Filed Date', 'Publication Date',
-    'Registration Date', 'Current Status',
+    'Registration Date', 'Current Status', 'Image URL',
   ]
   // Local filing examples
   const ex1 = [
     'Yanolja Co., Ltd.', 'YANOLJA', 'APP-2022-001234', 'REG-2023-005678', 'Word',
     '9, 42', 'India', 'IP India', '2022-03-15', '2022-09-20',
-    '2023-01-10', 'Registered',
+    '2023-01-10', 'Registered', '',
   ]
   const ex2 = [
     'Yanolja Co., Ltd.', 'YANOLJA & Device', 'APP-2022-001235', '', 'Device',
     '9, 35, 42', 'India', 'IP India', '2022-06-20', '',
-    '', 'Pending',
+    '', 'Pending', 'https://example.com/mark-image.jpg',
   ]
   // Madrid filing example — ONE IRN designating multiple countries means
   // ONE ROW PER (IRN, designated country). Same App No. repeats across rows.
   const ex3 = [
     'Yanolja Co., Ltd.', 'YANOLJA', '1490108', '1490108', 'Word',
     '42, 43', 'China', 'WIPO Madrid', '2019-05-20', '',
-    '2019-05-20', 'Registered',
+    '2019-05-20', 'Registered', '',
   ]
   const ex4 = [
     'Yanolja Co., Ltd.', 'YANOLJA', '1490108', '1490108', 'Word',
     '42, 43', 'Japan', 'WIPO Madrid', '2019-05-20', '',
-    '2019-05-20', 'Registered',
+    '2019-05-20', 'Registered', '',
   ]
   const ex5 = [
     'Yanolja Co., Ltd.', 'YANOLJA', '1490108', '', 'Word',
     '42, 43', 'Vietnam', 'WIPO Madrid', '2019-05-20', '',
-    '', 'Pending',
+    '', 'Pending', '',
   ]
   const csv  = [headers, ex1, ex2, ex3, ex4, ex5].map(row => row.map(v => `"${v}"`).join(',')).join('\n')
   const blob = new Blob([csv], { type: 'text/csv' })
@@ -411,7 +413,7 @@ export default function ApiSetup({ csvUploads = [], onCsvUpload, onCsvClear }) {
 
         <div className="px-5 py-2 bg-navy-700/20 border-b border-navy-600/30">
           <p className="text-[11px] text-slate-500 font-mono">
-            Template columns: Rightholder · Mark Name · Application No. · Registration No. · Kind of Mark ·
+            Template columns: Rightholder · Mark Name · Application No. · Registration No. · Kind of Mark · Image URL ·
             NCL Class · <span className="text-teal-400">Country of Filing</span> · <span className="text-teal-400">Registry</span> ·
             Filed Date · Publication Date · Registration Date · Current Status
           </p>

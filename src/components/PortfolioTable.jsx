@@ -79,7 +79,21 @@ export default function PortfolioTable({
                 className={`border-b border-navy-600/40 hover:bg-navy-700/30 transition-colors ${tm.status === 'Expired' || tm.status === 'Lapsed' ? 'opacity-50' : ''}`}
               >
                 <td className="px-4 py-3 text-slate-300 whitespace-nowrap">{tm.applicant}</td>
-                <td className="px-4 py-3 font-semibold text-white whitespace-nowrap">{tm.markName}</td>
+                <td className="px-4 py-3 font-semibold text-white whitespace-nowrap">
+                  <div className="flex items-center gap-2">
+                    {tm.imageUrl && (
+                      <a href={tm.imageUrl} target="_blank" rel="noopener noreferrer" title="Open mark image">
+                        <img
+                          src={tm.imageUrl}
+                          alt=""
+                          className="w-8 h-8 rounded border border-navy-500 object-contain bg-navy-700"
+                          onError={e => { e.currentTarget.style.display = 'none' }}
+                        />
+                      </a>
+                    )}
+                    <span>{tm.markName}</span>
+                  </div>
+                </td>
 
                 <td className="px-4 py-3">
                   <div className="flex flex-col gap-1 items-start">
