@@ -206,19 +206,22 @@ function normaliseMadridRow(row, uploadMeta, idx) {
 // Falls back to uploadMeta.label if those columns are blank.
 function normaliseCsvRow(row, uploadMeta, idx) {
   const get = (...keys) => { for (const k of keys) { const v = row[k] || ''; if (v) return v } return '' }
-  const applicant        = canonicaliseApplicant(get('rightholder', 'right_holder', 'applicant'))
-  const markName         = get('mark_name', 'trademark_name', 'trademark', 'mark', 'brand')
-  const appNo            = get('application_no_', 'application_no', 'serial_no', 'serial_number', 'app_no')
-  const regNo            = get('registration_no_', 'registration_no', 'reg_no')
-  const kindOfMark       = get('kind_of_mark', 'kind', 'mark_type')
-  const ncl              = get('ncl_class', 'ncl', 'class', 'nice_class')
-  const country          = get('country_of_filing', 'country') || uploadMeta.label
-  const registry         = get('registry') || uploadMeta.label
-  const applicationDate  = get('filed_date', 'filing_date', 'application_date')
-  const publicationDate  = get('publication_date', 'pub_date')
-  const registrationDate = get('registration_date', 'registered')
-  const status   = get('current_status', 'status', 'trademark_status')
-  const imageUrl = get('image_url', 'image_path', 'image', 'thumbnail')
+  const applicant        = canonicaliseApplicant(get('rightholder', 'right_holder', 'applicant', 'owner', 'proprietor', 'holder'))
+  const markName         = get('mark_name', 'trademark_name', 'trademark', 'mark', 'brand', 'tm_subject', 'tm_name', 'subject', 'mark_subject')
+  const appNo            = get('application_no_', 'application_no', 'serial_no', 'serial_number', 'app_no', 'app_number', 'filing_no_', 'filing_no')
+  const regNo            = get('registration_no_', 'registration_no', 'reg_no', 'reg_number', 'registered_no_')
+  const kindOfMark       = get('kind_of_mark', 'kind', 'mark_type', 'tm_type', 'tm_category', 'tm_category_type', 'category', 'type', 'mark_kind')
+  const ncl              = get('ncl_class', 'ncl', 'class', 'nice_class', 'nice_classification', 'classification_code', 'nice_classes')
+  const country          = get('country_of_filing', 'country', 'reg_country', 'registration_country', 'jurisdiction', 'country_of_registration') || uploadMeta.label
+  // Registry: prefer an explicit Registry column; otherwise fall back to the country
+  // name so CSVs without a Registry column (e.g. spreadsheets exported per-country)
+  // still produce a usable registry label for filtering / grouping.
+  const registry         = get('registry', 'office', 'ip_office') || country
+  const applicationDate  = get('filed_date', 'filing_date', 'application_date', 'app_date')
+  const publicationDate  = get('publication_date', 'pub_date', 'published')
+  const registrationDate = get('registration_date', 'registered', 'reg_date', 'registered_date')
+  const status   = get('current_status', 'status', 'trademark_status', 'legal_status')
+  const imageUrl = get('image_url', 'image_path', 'image', 'thumbnail', 'mark_image', 'registration_certificate', 'certificate_url', 'certificate_link', 'certificate')
   return normaliseTrademarkData({
     id:               `csv-${uploadMeta.id}-${appNo || idx}`,
     uploadId:         uploadMeta.id,

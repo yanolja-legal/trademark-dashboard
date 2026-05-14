@@ -124,16 +124,9 @@ export default function PortfolioTable({
                 </td>
 
                 <td className="px-4 py-3">
-                  <div className="flex flex-col gap-1 items-start">
-                    <span className={`px-2 py-0.5 rounded text-xs font-mono font-medium border ${REGISTRY_STYLES[tm.registry] || REGISTRY_DEFAULT}`}>
-                      {tm.registry}
-                    </span>
-                    {tm.source === 'csv' && (
-                      <span className="px-1.5 py-0 rounded text-[9px] font-bold border bg-slate-500/10 text-slate-400 border-slate-500/25 tracking-wide">
-                        MANUAL UPLOAD
-                      </span>
-                    )}
-                  </div>
+                  <span className={`px-2 py-0.5 rounded text-xs font-mono font-medium border ${REGISTRY_STYLES[tm.registry] || REGISTRY_DEFAULT}`}>
+                    {tm.registry}
+                  </span>
                 </td>
 
                 <td className="px-4 py-3 text-slate-300 whitespace-nowrap">
@@ -170,7 +163,7 @@ export default function PortfolioTable({
                 <td colSpan={COLUMNS.length} className="px-4 py-20 text-center">
                   <p className="text-slate-400 text-sm mb-1">No trademark data loaded yet.</p>
                   <p className="text-slate-500 text-xs">
-                    Click <span className="text-accent-blue font-medium">Refresh All Registries</span> to fetch trademark data for all entities
+                    Upload a CSV in the <span className="text-accent-blue font-medium">Data Upload</span> tab to load trademark data
                   </p>
                 </td>
               </tr>

@@ -14,4 +14,5 @@ export const SUBSIDIARIES = [
   { id: 10, name: "Yanolja Cloud Go Global Korea Co., Ltd.",  shortName: "Yanolja Cloud Go Global",  country: "South Korea",   active: true, kiprisSearchKeys: ["야놀자클라우드고글로벌코리아"] },
   { id: 11, name: "Yanolja Cloud Partners Co., Ltd.",         shortName: "Yanolja Cloud Partners",   country: "South Korea",   active: true, kiprisSearchKeys: ["야놀자클라우드파트너스"] },
   { id: 12, name: "Yanolja Partners Co., Ltd.",               shortName: "Yanolja Partners",         country: "South Korea",   active: true, kiprisSearchKeys: ["야놀자파트너스"] },
+  { id: 13, name: "eZee Technosys Private Limited",           shortName: "eZee Technosys",           country: "India",         active: true },
 ];

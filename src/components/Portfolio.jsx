@@ -136,7 +136,7 @@ export default function Portfolio({ data, registryStatus = {}, progress, lastUpd
             </p>
           ) : (
             <p className="text-xs text-slate-400">
-              Click <span className="text-accent-blue font-medium">Refresh All Registries</span> to fetch trademark data for all entities
+              Upload a CSV in the <span className="text-accent-blue font-medium">Data Upload</span> tab to load trademark data
             </p>
           )}
         </div>
@@ -150,14 +150,6 @@ export default function Portfolio({ data, registryStatus = {}, progress, lastUpd
               Download CSV
             </button>
           )}
-          <button
-            onClick={onRefresh}
-            disabled={isRefreshing}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-accent-blue/10 border border-accent-blue/30 text-accent-blue text-sm hover:bg-accent-blue/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
-          >
-            <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-            Refresh All Registries
-          </button>
         </div>
       </div>
 

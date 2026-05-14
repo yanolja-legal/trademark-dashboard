@@ -11,8 +11,8 @@ import { KNOWN_MARKS }  from './knownMarks'
 // ── constants ──────────────────────────────────────────────────────────────────
 
 const TABS = [
-  { id: 'entity',    label: 'By Entity',    icon: Building2 },
   { id: 'portfolio', label: 'Portfolio',    icon: Database  },
+  { id: 'entity',    label: 'By Entity',    icon: Building2 },
   { id: 'api',       label: 'Data Upload',  icon: Upload    },
 ]
 
@@ -60,7 +60,7 @@ async function fetchWithTimeout(url, ms = 15000) {
 // ── App ────────────────────────────────────────────────────────────────────────
 
 export default function App() {
-  const [activeTab,      setActiveTab]      = useState('entity')
+  const [activeTab,      setActiveTab]      = useState('portfolio')
   const [liveResults,    setLiveResults]    = useState(() => {
     try { const c = localStorage.getItem(CACHE_RESULTS);   return c ? JSON.parse(c) : [] } catch { return [] }
   })
@@ -374,24 +374,14 @@ export default function App() {
               ))}
             </div>
 
-            <div className="flex items-center gap-3">
-              <div className="text-right hidden md:block">
-                <p className="text-[10px] text-slate-500 uppercase tracking-wider">Last updated</p>
-                <p className={`text-xs font-mono ${lastUpdated ? 'text-accent-green' : 'text-slate-400'}`}>
-                  {lastUpdated
-                    ? format(lastUpdated, 'yyyy-MM-dd HH:mm') + ' UTC'
-                    : isRefreshing ? 'Fetching…' : '—'
-                  }
-                </p>
-              </div>
-              <button
-                onClick={fetchAll}
-                disabled={isRefreshing}
-                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-accent-blue/10 border border-accent-blue/30 text-accent-blue text-sm hover:bg-accent-blue/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-                {isRefreshing ? 'Refreshing…' : 'Refresh All'}
-              </button>
+            <div className="text-right hidden md:block">
+              <p className="text-[10px] text-slate-500 uppercase tracking-wider">Last updated</p>
+              <p className={`text-xs font-mono ${lastUpdated ? 'text-accent-green' : 'text-slate-400'}`}>
+                {lastUpdated
+                  ? format(lastUpdated, 'yyyy-MM-dd HH:mm') + ' UTC'
+                  : '—'
+                }
+              </p>
             </div>
           </div>
         </div>

@@ -106,6 +106,7 @@ by checking the deployment URL.
 10. Yanolja Cloud Go Global Korea Co., Ltd. — South Korea
 11. Yanolja Cloud Partners Co., Ltd. — South Korea
 12. Yanolja Partners Co., Ltd. — South Korea
+13. eZee Technosys Private Limited — India
 
 ## DATA SOURCES
 
